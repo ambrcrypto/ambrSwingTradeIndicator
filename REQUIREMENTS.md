@@ -1,0 +1,80 @@
+# AMB Dual MA Signal – Anforderungen
+
+## Grundprinzip
+
+| MA        | Rolle                                                                 |
+|-----------|-----------------------------------------------------------------------|
+| **Slow MA** | Trendfilter – definiert erlaubte Handelsrichtung. **Erster Einstieg** immer via Slow MA |
+| **Fast MA** | Timing-Signal – steuert **Ausstieg und Wiedereinstieg** innerhalb des Trends |
+
+### Trendrichtung
+- Kurs **über** Slow MA → nur **Long**-Trades erlaubt
+- Kurs **unter** Slow MA → nur **Short**-Trades erlaubt
+
+---
+
+## Long-Regeln
+
+| Situation      | Bedingung                                                                                       |
+|----------------|-------------------------------------------------------------------------------------------------|
+| **OL Entry**   | Kurs schliesst über Slow MA, nachdem er in der vorherigen Kerze darunter war                   |
+| **OL Re-Entry**| Kurs schliesst über Fast MA, nachdem er darunter war – kein offener Trade, implizit über Slow MA |
+| **CL Exit A**  | Kurs hat seit Entry die Fast MA je überschritten → schliesst darunter                          |
+| **CL Exit B**  | Kurs hat seit letztem Slow-MA-Crossover die Fast MA **nie** überschritten → schliesst unter Slow MA |
+
+## Short-Regeln (spiegelverkehrt)
+
+| Situation      | Bedingung                                                                                        |
+|----------------|--------------------------------------------------------------------------------------------------|
+| **OS Entry**   | Kurs schliesst unter Slow MA, nachdem er in der vorherigen Kerze darüber war                    |
+| **OS Re-Entry**| Kurs schliesst unter Fast MA, nachdem er darüber war – kein offener Trade, implizit unter Slow MA |
+| **CS Exit A**  | Kurs hat seit Entry die Fast MA je unterschritten → schliesst darüber                           |
+| **CS Exit B**  | Kurs hat seit letztem Slow-MA-Crossover die Fast MA **nie** unterschritten → schliesst über Slow MA |
+
+---
+
+## ATR-Erweiterung (V2 – noch nicht implementiert)
+
+ATR als optionaler Puffer, der **pro Situation** (Entry / Re-Entry / Exit) separat aktiviert werden kann, um Fehlsignale bei hoher Volatilität zu reduzieren.
+
+| Situation  | Ohne ATR                    | Mit ATR                                  |
+|------------|-----------------------------|------------------------------------------|
+| OL Entry   | Crossover Slow MA           | Kurs schliesst über Slow MA + ATR×Faktor |
+| OL Re-Entry| Crossover Fast MA           | Kurs schliesst über Fast MA + ATR×Faktor |
+| CL Exit A  | Crossunder Fast MA          | Kurs schliesst unter Fast MA − ATR×Faktor|
+| CL Exit B  | Crossunder Slow MA          | Kurs schliesst unter Slow MA − ATR×Faktor|
+| OS / CS    | (spiegelverkehrt)           | (spiegelverkehrt)                        |
+
+### Geplante Optionen für V2
+- ATR-Faktor separat für Entry, Re-Entry und Exit konfigurierbar
+- Optionaler Filter: Mindestanzahl Kerzen auf einer Seite vor Signal
+
+---
+
+## Stop Loss (V2 – noch nicht implementiert)
+- Entry-Price SL: Kurs schliesst unter/über Einstiegspreis
+- Optional mit ATR-Buffer
+
+---
+
+## Technische Anforderungen
+
+- Platform: TradingView Pine Script v6
+- Signal-Timing: Kerzenschluss (`barstate.isconfirmed`)
+- Multi-Timeframe-Support: Slow MA und Fast MA unabhängig konfigurierbar
+- Backtesting: Integriert, mit Kapital, Leverage, Datumsfenster
+- Alerts: ENTER LONG / ENTER SHORT / EXIT LONG / EXIT SHORT
+- Ziel: Anwendbar auf BTC, Aktien, ETFs (anpassbare Parameter)
+
+---
+
+## Default-Parameter (BTCUSDT 1D optimiert)
+
+| Parameter        | Wert  |
+|------------------|-------|
+| Slow MA          | 130 SMA, Daily |
+| Fast MA          | 44 SMA, Daily  |
+| ATR Length       | 14 (RMA) – V2  |
+| Leverage Long    | 3.0x           |
+| Leverage Short   | 1.25x          |
+| Backtest Start   | 2021-04-14     |

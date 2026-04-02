@@ -17,8 +17,8 @@ fastMA_len   = input.int(44, "Fast MA Length", minval=1, group="Fast MA")
 // ═══════════════════════════════════════════════════════════════════════
 // INPUTS: ATR Base Configuration
 // ═══════════════════════════════════════════════════════════════════════
-atrLength    = input.int(7, "ATR Length", minval=1, group="ATR Settings")
-atrSmoothing = input.string("SMA", "ATR Smoothing", options=["RMA","SMA","EMA","WMA"], group="ATR Settings")
+atrLength    = input.int(14, "ATR Length", minval=1, group="ATR Settings")
+atrSmoothing = input.string("RMA", "ATR Smoothing", options=["RMA","SMA","EMA","WMA"], group="ATR Settings")
 
 // ═══════════════════════════════════════════════════════════════════════
 // INPUTS: ATR Long Configuration
