@@ -1,0 +1,65 @@
+// ═══════════════════════════════════════════════════════════════════════
+// INPUTS: Slow MA Configuration (130 SMA - Trend Filter)
+// ═══════════════════════════════════════════════════════════════════════
+slowMA_tf   = input.timeframe("D", "Slow MA TF (e.g. D, 4H)", group="Slow MA")
+slowMA_type = input.string("SMA", "Slow MA Type", options=["SMA","EMA"], group="Slow MA")
+slowMA_len   = input.int(130, "Slow MA Length", minval=1, group="Slow MA")
+slowMA_show  = input.bool(true, "Show Slow MA on Chart", group="Slow MA")
+
+// ═══════════════════════════════════════════════════════════════════════
+// INPUTS: Fast MA Configuration (40 SMA - Exit Signal)
+// ═══════════════════════════════════════════════════════════════════════
+fastMA_use   = input.bool(true, "Enable Fast MA?", group="Fast MA")
+fastMA_tf    = input.timeframe("D", "Fast MA TF (e.g. D, 4H)", group="Fast MA")
+fastMA_type  = input.string("SMA", "Fast MA Type", options=["SMA","EMA"], group="Fast MA")
+fastMA_len   = input.int(44, "Fast MA Length", minval=1, group="Fast MA")
+
+// ═══════════════════════════════════════════════════════════════════════
+// INPUTS: ATR Base Configuration
+// ═══════════════════════════════════════════════════════════════════════
+atrLength    = input.int(7, "ATR Length", minval=1, group="ATR Settings")
+atrSmoothing = input.string("SMA", "ATR Smoothing", options=["RMA","SMA","EMA","WMA"], group="ATR Settings")
+
+// ═══════════════════════════════════════════════════════════════════════
+// INPUTS: ATR Long Configuration
+// ═══════════════════════════════════════════════════════════════════════
+atrLongMult  = input.float(1.7, "ATR Multiplier (Long)", minval=0.1, step=0.1, group="ATR Long")
+atrEntryLong = input.bool(true, "Use ATR for Entry (Long)?", group="ATR Long")
+atrExitLong  = input.bool(false, "Use ATR for Exit (Long)?", group="ATR Long")
+atrReentryLong = input.bool(false, "Use ATR for Reentry (Long)?", group="ATR Long")
+
+// ═══════════════════════════════════════════════════════════════════════
+// INPUTS: ATR Short Configuration
+// ═══════════════════════════════════════════════════════════════════════
+atrShortMult = input.float(1.5, "ATR Multiplier (Short)", minval=0.1, step=0.1, group="ATR Short")
+atrEntryShort = input.bool(true, "Use ATR for Entry (Short)?", group="ATR Short")
+atrExitShort  = input.bool(false, "Use ATR for Exit (Short)?", group="ATR Short")
+atrReentryShort = input.bool(false, "Use ATR for Reentry (Short)?", group="ATR Short")
+
+// ═══════════════════════════════════════════════════════════════════════
+// INPUTS: Signal Control
+// ═══════════════════════════════════════════════════════════════════════
+allowLongs  = input.bool(true, "Allow Long Trades?", group="Signal Control")
+allowShorts = input.bool(true, "Allow Short Trades?", group="Signal Control")
+
+// ═══════════════════════════════════════════════════════════════════════
+// INPUTS: Entry Price Stop Loss Configuration
+// ═══════════════════════════════════════════════════════════════════════
+entryPriceSL = input.bool(true, "Enable Entry Price Stop Loss?", group="Stop Loss")
+entryPriceSLuseATR = input.bool(false, "Use ATR for Entry SL?", group="Stop Loss")
+atrSLMult = input.float(1.0, "ATR Multiplier for SL", minval=0.1, step=0.1, group="Stop Loss")
+
+// ═══════════════════════════════════════════════════════════════════════
+// INPUTS: Backtest Configuration
+// ═══════════════════════════════════════════════════════════════════════
+backtest_enable = input.bool(false, "Enable Backtesting", group="Backtest")
+leverageLong = input.float(3.0, "Leverage (Long)", minval=0.1, step=0.1, group="Backtest")
+leverageShort = input.float(1.25, "Leverage (Short)", minval=0.1, step=0.1, group="Backtest")
+bt_start_year  = input.int(2021, "Backtest Start Year", group="Backtest")
+bt_start_month = input.int(4, "Backtest Start Month", minval=1, maxval=12, group="Backtest")
+bt_start_day   = input.int(14, "Backtest Start Day", minval=1, maxval=31, group="Backtest")
+bt_use_end_date = input.bool(false, "Use End Date?", group="Backtest")
+bt_end_year  = input.int(2025, "Backtest End Year", group="Backtest")
+bt_end_month = input.int(12, "Backtest End Month", minval=1, maxval=12, group="Backtest")
+bt_end_day   = input.int(31, "Backtest End Day", minval=1, maxval=31, group="Backtest")
+start_capital = input.float(1000.0, "Start Capital", minval=1, group="Backtest")

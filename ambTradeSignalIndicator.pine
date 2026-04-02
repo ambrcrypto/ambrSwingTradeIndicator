@@ -1,0 +1,407 @@
+//@version=6
+indicator("AMB Trade Signal Indicator incl backtesting", overlay=true)
+
+// ═══════════════════════════════════════════════════════════════════════
+// INPUTS: Slow MA Configuration (130 SMA - Trend Filter)
+// ═══════════════════════════════════════════════════════════════════════
+slowMA_tf   = input.timeframe("D", "Slow MA TF (e.g. D, 4H)", group="Slow MA")
+slowMA_type = input.string("SMA", "Slow MA Type", options=["SMA","EMA"], group="Slow MA")
+slowMA_len   = input.int(130, "Slow MA Length", minval=1, group="Slow MA")
+slowMA_show  = input.bool(true, "Show Slow MA on Chart", group="Slow MA")
+
+// ═══════════════════════════════════════════════════════════════════════
+// INPUTS: Fast MA Configuration (40 SMA - Exit Signal)
+// ═══════════════════════════════════════════════════════════════════════
+fastMA_use   = input.bool(true, "Enable Fast MA?", group="Fast MA")
+fastMA_tf    = input.timeframe("D", "Fast MA TF (e.g. D, 4H)", group="Fast MA")
+fastMA_type  = input.string("SMA", "Fast MA Type", options=["SMA","EMA"], group="Fast MA")
+fastMA_len   = input.int(44, "Fast MA Length", minval=1, group="Fast MA")
+
+// ═══════════════════════════════════════════════════════════════════════
+// INPUTS: ATR Base Configuration
+// ═══════════════════════════════════════════════════════════════════════
+atrLength    = input.int(7, "ATR Length", minval=1, group="ATR Settings")
+atrSmoothing = input.string("SMA", "ATR Smoothing", options=["RMA","SMA","EMA","WMA"], group="ATR Settings")
+
+// ═══════════════════════════════════════════════════════════════════════
+// INPUTS: ATR Long Configuration
+// ═══════════════════════════════════════════════════════════════════════
+atrLongMult  = input.float(1.7, "ATR Multiplier (Long)", minval=0.1, step=0.1, group="ATR Long")
+atrEntryLong = input.bool(true, "Use ATR for Entry (Long)?", group="ATR Long")
+atrExitLong  = input.bool(false, "Use ATR for Exit (Long)?", group="ATR Long")
+atrReentryLong = input.bool(false, "Use ATR for Reentry (Long)?", group="ATR Long")
+
+// ═══════════════════════════════════════════════════════════════════════
+// INPUTS: ATR Short Configuration
+// ═══════════════════════════════════════════════════════════════════════
+atrShortMult = input.float(1.5, "ATR Multiplier (Short)", minval=0.1, step=0.1, group="ATR Short")
+atrEntryShort = input.bool(true, "Use ATR for Entry (Short)?", group="ATR Short")
+atrExitShort  = input.bool(false, "Use ATR for Exit (Short)?", group="ATR Short")
+atrReentryShort = input.bool(false, "Use ATR for Reentry (Short)?", group="ATR Short")
+
+// ═══════════════════════════════════════════════════════════════════════
+// INPUTS: Signal Control
+// ═══════════════════════════════════════════════════════════════════════
+allowLongs  = input.bool(true, "Allow Long Trades?", group="Signal Control")
+allowShorts = input.bool(true, "Allow Short Trades?", group="Signal Control")
+
+// ═══════════════════════════════════════════════════════════════════════
+// INPUTS: Entry Price Stop Loss Configuration
+// ═══════════════════════════════════════════════════════════════════════
+entryPriceSL = input.bool(true, "Enable Entry Price Stop Loss?", group="Stop Loss")
+entryPriceSLuseATR = input.bool(false, "Use ATR for Entry SL?", group="Stop Loss")
+atrSLMult = input.float(1.0, "ATR Multiplier for SL", minval=0.1, step=0.1, group="Stop Loss")
+
+// ═══════════════════════════════════════════════════════════════════════
+// INPUTS: Backtest Configuration
+// ═══════════════════════════════════════════════════════════════════════
+backtest_enable = input.bool(false, "Enable Backtesting", group="Backtest")
+leverageLong = input.float(3.0, "Leverage (Long)", minval=0.1, step=0.1, group="Backtest")
+leverageShort = input.float(1.25, "Leverage (Short)", minval=0.1, step=0.1, group="Backtest")
+bt_start_year  = input.int(2021, "Backtest Start Year", group="Backtest")
+bt_start_month = input.int(4, "Backtest Start Month", minval=1, maxval=12, group="Backtest")
+bt_start_day   = input.int(14, "Backtest Start Day", minval=1, maxval=31, group="Backtest")
+bt_use_end_date = input.bool(false, "Use End Date?", group="Backtest")
+bt_end_year  = input.int(2025, "Backtest End Year", group="Backtest")
+bt_end_month = input.int(12, "Backtest End Month", minval=1, maxval=12, group="Backtest")
+bt_end_day   = input.int(31, "Backtest End Day", minval=1, maxval=31, group="Backtest")
+start_capital = input.float(1000.0, "Start Capital", minval=1, group="Backtest")
+
+// ═══════════════════════════════════════════════════════════════════════
+// HELPER FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════
+// Selects ATR smoothing method (RMA, SMA, EMA, WMA)
+atr_ma(src, len) =>
+    switch atrSmoothing
+        "RMA" => ta.rma(src, len)
+        "SMA" => ta.sma(src, len)
+        "EMA" => ta.ema(src, len)
+        => ta.wma(src, len)
+
+create_trade_label(pct) =>
+    lbl_text = (pct >= 0 ? "+" : "") + str.tostring(pct, "#.##") + "%"
+    lbl_color = pct >= 0 ? color.green : color.red
+    label.new(bar_index, close, text=lbl_text, yloc=yloc.abovebar, color=lbl_color, style=label.style_label_down, textcolor=color.white)
+
+// ═══════════════════════════════════════════════════════════════════════
+// CALCULATIONS: Multi-Timeframe Values
+// ═══════════════════════════════════════════════════════════════════════
+// Fetch higher timeframe close and MA values
+slowMA_close = request.security(syminfo.tickerid, slowMA_tf, close, barmerge.gaps_off, barmerge.lookahead_off)
+slowMA_calc = slowMA_type == "SMA" ? ta.sma(close, slowMA_len) : ta.ema(close, slowMA_len)
+slowMA_value = request.security(syminfo.tickerid, slowMA_tf, slowMA_calc, barmerge.gaps_off, barmerge.lookahead_off)
+fastMA_calc = fastMA_type == "SMA" ? ta.sma(close, fastMA_len) : ta.ema(close, fastMA_len)
+fastMA_value = request.security(syminfo.tickerid, fastMA_tf, fastMA_calc, barmerge.gaps_off, barmerge.lookahead_off)
+
+atr = atr_ma(ta.tr(true), atrLength)
+atrThresholdLong = atr * atrLongMult
+atrThresholdShort = atr * atrShortMult
+atrThresholdSL = atr * atrSLMult
+
+longThreshold = slowMA_value + (atrEntryLong ? atrThresholdLong : 0)
+shortThreshold = slowMA_value - (atrEntryShort ? atrThresholdShort : 0)
+
+// Reentry thresholds (independent from entry, uses atrReentryLong/Short flags)
+reentryLongThreshold = slowMA_value + (atrReentryLong ? atrThresholdLong : 0)
+reentryShortThreshold = slowMA_value - (atrReentryShort ? atrThresholdShort : 0)
+
+// Exit ATR thresholds (0 if disabled)
+atrExitThresholdLong = atrExitLong ? atrThresholdLong : 0
+atrExitThresholdShort = atrExitShort ? atrThresholdShort : 0
+atrSLThresholdLong = entryPriceSLuseATR ? atrThresholdSL : 0
+atrSLThresholdShort = entryPriceSLuseATR ? atrThresholdSL : 0
+
+// Primary entry conditions
+longCondition = slowMA_close >= longThreshold
+shortCondition = slowMA_close <= shortThreshold
+
+// Detect candle closes for each timeframe (true when period changes = previous candle closed)
+slowMA_barClosed = ta.change(time(slowMA_tf)) != 0
+fastMA_barClosed = ta.change(time(fastMA_tf)) != 0
+
+// ═══════════════════════════════════════════════════════════════════════
+// SIGNAL GENERATION: State Machine
+// ═══════════════════════════════════════════════════════════════════════
+// Persistent state variables
+var int lastSignalDirection = 0  // -1=short, 0=none, 1=long
+var bool position_open = false   // True when position active
+var bool longAboveFastMA = false  // Long position entered above fast MA
+var bool shortBelowFastMA = false // Short position entered below fast MA
+var float entry_price = na       // Entry price for current open position
+
+// Entry price line tracking
+var line current_entry_line = na  // Line for current open position
+var label current_entry_label = na // Label for entry price on scale
+
+// Reentry conditions (allows re-entering same direction after exit)
+// Reentry uses independent thresholds (respects atrReentryLong/Short toggle)
+// If FastMA disabled, reentry is based on slow MA only
+allowReentryLong = not position_open and lastSignalDirection == 1 and ((fastMA_use and slowMA_close >= reentryLongThreshold and close > fastMA_value) or (not fastMA_use and slowMA_close >= reentryLongThreshold))
+allowReentryShort = not position_open and lastSignalDirection == -1 and ((fastMA_use and slowMA_close <= reentryShortThreshold and close < fastMA_value) or (not fastMA_use and slowMA_close <= reentryShortThreshold))
+
+longSignal_raw  = ((longCondition) and (not position_open) and lastSignalDirection != 1) or allowReentryLong
+shortSignal_raw = ((shortCondition) and (not position_open) and lastSignalDirection != -1) or allowReentryShort
+
+longSignal  = longSignal_raw and allowLongs
+shortSignal = shortSignal_raw and allowShorts
+
+if longSignal and barstate.isconfirmed
+    lastSignalDirection := 1
+    position_open := true
+    entry_price := close
+    if fastMA_use
+        longAboveFastMA := close > fastMA_value
+    // Create entry price line and label
+    if not na(current_entry_line)
+        line.delete(current_entry_line)
+    if not na(current_entry_label)
+        label.delete(current_entry_label)
+    current_entry_line := line.new(bar_index, close, bar_index + 1, close, extend=extend.right, color=color.new(#0096FF, 0), style=line.style_dotted, width=1)
+    current_entry_label := label.new(bar_index, close, text=str.tostring(close, "#.##"), yloc=yloc.price, color=color.new(#0096FF, 50), style=label.style_label_right, textcolor=color.white, size=size.small)
+else if shortSignal and barstate.isconfirmed
+    lastSignalDirection := -1
+    position_open := true
+    entry_price := close
+    if fastMA_use
+        shortBelowFastMA := close < fastMA_value
+    // Create entry price line and label
+    if not na(current_entry_line)
+        line.delete(current_entry_line)
+    if not na(current_entry_label)
+        label.delete(current_entry_label)
+    current_entry_line := line.new(bar_index, close, bar_index + 1, close, extend=extend.right, color=color.new(#0096FF, 0), style=line.style_dotted, width=1)
+    current_entry_label := label.new(bar_index, close, text=str.tostring(close, "#.##"), yloc=yloc.price, color=color.new(#0096FF, 50), style=label.style_label_right, textcolor=color.white, size=size.small)
+
+// ═══════════════════════════════════════════════════════════════════════
+// EXIT CONDITIONS: MA-based with optional ATR adjustment + Entry Price SL
+// ═══════════════════════════════════════════════════════════════════════
+// Long exits: close below fast MA OR slow MA OR entry price SL (all with ATR buffer if enabled)
+exitLongFastMA = fastMA_use and close < (fastMA_value - atrExitThresholdLong)
+exitLongSlowMA = close < (slowMA_value - atrExitThresholdLong)
+exitLongEntryPriceSL = entryPriceSL and close < (entry_price - atrSLThresholdLong)
+// Main exit: MA-based only (SL handled separately for signal priority)
+exitLong = position_open and lastSignalDirection == 1 and (exitLongFastMA or exitLongSlowMA or exitLongEntryPriceSL)
+
+// Short exits: close above fast MA OR slow MA OR entry price SL (all with ATR buffer if enabled)
+exitShortFastMA = fastMA_use and close > (fastMA_value + atrExitThresholdShort)
+exitShortSlowMA = close > (slowMA_value + atrExitThresholdShort)
+exitShortEntryPriceSL = entryPriceSL and close > (entry_price + atrSLThresholdShort)
+// Main exit: MA-based only (SL handled separately for signal priority)
+exitShort = position_open and lastSignalDirection == -1 and (exitShortFastMA or exitShortSlowMA or exitShortEntryPriceSL)
+
+// SL-specific exits: only fire signal if SL is the ONLY reason for exit
+slCloseLong = position_open and lastSignalDirection == 1 and exitLongEntryPriceSL and not exitLongFastMA and not exitLongSlowMA
+slCloseShort = position_open and lastSignalDirection == -1 and exitShortEntryPriceSL and not exitShortFastMA and not exitShortSlowMA
+
+// Determine which exit signal to display (MA takes priority)
+maCloseLong = position_open and lastSignalDirection == 1 and (exitLongFastMA or exitLongSlowMA)
+maCloseShort = position_open and lastSignalDirection == -1 and (exitShortFastMA or exitShortSlowMA)
+
+// Chart signals are mutually exclusive: MA takes priority over SL
+chartExitLong = maCloseLong  // Show CL if MA triggered
+chartExitShortSignal = maCloseShort  // Show CS if MA triggered
+chartSLLong = slCloseLong and not maCloseLong  // Show SL only if NO MA triggered
+chartSLShort = slCloseShort and not maCloseShort  // Show SL only if NO MA triggered
+
+if (exitLong or exitShort) and barstate.isconfirmed
+    position_open := false
+    longAboveFastMA := false
+    shortBelowFastMA := false
+    entry_price := na
+    // Clear current entry line and label
+    if not na(current_entry_line)
+        line.delete(current_entry_line)
+        current_entry_line := na
+    if not na(current_entry_label)
+        label.delete(current_entry_label)
+        current_entry_label := na
+
+// ═══════════════════════════════════════════════════════════════════════
+// BACKTEST SIMULATION: Independent state machine, separate from signals
+// ═══════════════════════════════════════════════════════════════════════
+// Timestamps for backtest date window
+start_ts = timestamp(bt_start_year, bt_start_month, bt_start_day, 0, 0)
+end_ts = bt_use_end_date ? timestamp(bt_end_year, bt_end_month, bt_end_day, 23, 59) : na
+future_ts = timestamp(2099, 12, 31, 23, 59)  // Far future date for open-ended backtests
+sim_end_ts = na(end_ts) ? future_ts : end_ts
+
+in_window = time >= start_ts and time <= sim_end_ts
+
+// Backtest state variables (completely independent from signal layer)
+var bool bt_position_open = false    // Backtest: position active
+var int bt_position_type = 0         // Backtest: 1=long, -1=short, 0=closed
+var float bt_entry_price = na        // Backtest: entry price for P/L calc
+var int trades = 0                   // Backtest: trade counter
+var table stats_tbl = table.new(position.bottom_left, 4, 3)  // Results table (4 rows x 3 cols)
+var bool window_initialized = false  // Backtest: window started
+var float[] trade_percs = array.new_float()  // Backtest: P/L array
+
+if backtest_enable
+    trade_pct = 0.0
+    
+    // Initialize on first bar of backtest window
+    if backtest_enable and in_window and not window_initialized
+        bt_position_open := false
+        bt_position_type := 0
+        bt_entry_price := na
+        trades := 0
+        array.clear(trade_percs)
+        window_initialized := true
+    
+    // Reset flag when outside window (only when backtesting enabled)
+    if backtest_enable and not in_window
+        window_initialized := false
+    
+    // Only process trades within backtest window
+    if in_window
+        // Long entry
+        if longSignal and not bt_position_open
+            bt_entry_price := close
+            bt_position_type := 1
+            bt_position_open := true
+        
+        if shortSignal and not bt_position_open
+            bt_entry_price := close
+            bt_position_type := -1
+            bt_position_open := true
+        
+        // Long exit: calculate P/L and record trade
+        if exitLong and bt_position_open and bt_position_type == 1
+            trade_pct := ((close - bt_entry_price) / bt_entry_price * 100.0) * leverageLong
+            array.push(trade_percs, trade_pct)
+            trades += 1
+            if backtest_enable
+                create_trade_label(trade_pct)
+            bt_position_open := false
+            bt_position_type := 0
+            bt_entry_price := na
+        
+        // Short exit: calculate P/L and record trade
+        if exitShort and bt_position_open and bt_position_type == -1
+            trade_pct := ((bt_entry_price - close) / bt_entry_price * 100.0) * leverageShort
+            array.push(trade_percs, trade_pct)
+            trades += 1
+            if backtest_enable
+                create_trade_label(trade_pct)
+            bt_position_open := false
+            bt_position_type := 0
+            bt_entry_price := na
+    
+    // Close any open position when exiting backtest window
+    if backtest_enable and not in_window and na(sim_end_ts) == false and time > sim_end_ts and bt_position_open
+        if bt_position_type == 1
+            trade_pct := ((close - bt_entry_price) / bt_entry_price * 100.0) * leverageLong
+        else
+            trade_pct := ((bt_entry_price - close) / bt_entry_price * 100.0) * leverageShort
+        array.push(trade_percs, trade_pct)
+        trades += 1
+        create_trade_label(trade_pct)
+        bt_position_open := false
+        bt_position_type := 0
+        bt_entry_price := na
+
+// ═══════════════════════════════════════════════════════════════════════
+// PERFORMANCE METRICS: P/L, statistics
+// ═══════════════════════════════════════════════════════════════════════
+// Compound capital growth through all trades
+end_capital = start_capital
+if array.size(trade_percs) > 0
+    for i = 0 to array.size(trade_percs) - 1
+        end_capital := end_capital * (1 + array.get(trade_percs, i) / 100.0)
+
+pl_curr = end_capital - start_capital
+pl_pct = start_capital == 0 ? 0 : (pl_curr / start_capital) * 100.0
+
+// Compute max win/loss
+computed_max_win = float(na)
+computed_max_loss = float(na)
+if array.size(trade_percs) > 0
+    computed_max_win := array.get(trade_percs, 0)
+    computed_max_loss := array.get(trade_percs, 0)
+    for i = 0 to array.size(trade_percs) - 1
+        v = array.get(trade_percs, i)
+        computed_max_win := math.max(computed_max_win, v)
+        computed_max_loss := math.min(computed_max_loss, v)
+
+// Count winning and losing trades
+winning_trades = 0
+losing_trades = 0
+if array.size(trade_percs) > 0
+    for i = 0 to array.size(trade_percs) - 1
+        if array.get(trade_percs, i) >= 0
+            winning_trades += 1
+        else
+            losing_trades += 1
+
+// Win percentage
+win_pct = trades == 0 ? 0 : (winning_trades / trades) * 100.0
+
+// ═══════════════════════════════════════════════════════════════════════
+// DISPLAY: Results table and chart elements
+// ═══════════════════════════════════════════════════════════════════════
+// Update statistics table
+if backtest_enable
+    table.clear(stats_tbl, 0, 0, 3, 2)
+    // format dates
+    start_date_str = str.tostring(bt_start_year) + "-" + (bt_start_month < 10 ? "0" + str.tostring(bt_start_month) : str.tostring(bt_start_month)) + "-" + (bt_start_day < 10 ? "0" + str.tostring(bt_start_day) : str.tostring(bt_start_day))
+    end_date_str = bt_use_end_date ? (str.tostring(bt_end_year) + "-" + (bt_end_month < 10 ? "0" + str.tostring(bt_end_month) : str.tostring(bt_end_month)) + "-" + (bt_end_day < 10 ? "0" + str.tostring(bt_end_day) : str.tostring(bt_end_day))) : ("ongoing")
+    
+    // Row 0: Start Date, End Date, Start Cap
+    table.cell(stats_tbl, 0, 0, "Start: " + start_date_str, bgcolor=color.new(color.gray, 50), text_color=color.white, text_size=size.small)
+    table.cell(stats_tbl, 0, 1, "End: " + end_date_str, bgcolor=color.new(color.gray, 50), text_color=color.white, text_size=size.small)
+    table.cell(stats_tbl, 0, 2, "Cap: $" + str.tostring(start_capital, "#.##"), bgcolor=color.new(color.gray, 50), text_color=color.white, text_size=size.small)
+    
+    // Row 1: P/L %, P/L $, End Cap
+    table.cell(stats_tbl, 1, 0, "P/L: " + str.tostring(pl_pct, "#.##") + "%", bgcolor=color.new(color.gray, 70), text_color=color.white, text_size=size.small)
+    table.cell(stats_tbl, 1, 1, "P/L: $" + str.tostring(pl_curr, "#.##"), bgcolor=color.new(color.gray, 70), text_color=color.white, text_size=size.small)
+    table.cell(stats_tbl, 1, 2, "End: $" + str.tostring(end_capital, "#.##"), bgcolor=color.new(color.gray, 70), text_color=color.white, text_size=size.small)
+    
+    // Row 2: Max Win %, Max Loss %, Win %
+    table.cell(stats_tbl, 2, 0, "Max Win: " + (array.size(trade_percs) > 0 ? (str.tostring(computed_max_win, "#.##") + "%") : "n/a"), bgcolor=color.new(color.gray, 90), text_color=color.white, text_size=size.small)
+    table.cell(stats_tbl, 2, 1, "Max Loss: " + (array.size(trade_percs) > 0 ? (str.tostring(computed_max_loss, "#.##") + "%") : "n/a"), bgcolor=color.new(color.gray, 90), text_color=color.white, text_size=size.small)
+    table.cell(stats_tbl, 2, 2, "Win %: " + str.tostring(win_pct, "#.##") + "%", bgcolor=color.new(color.gray, 90), text_color=color.white, text_size=size.small)
+    
+    // Row 3: Leverage Long, Leverage Short, Trades
+    table.cell(stats_tbl, 3, 0, "Lev Long: " + str.tostring(leverageLong, "#.##") + "x", bgcolor=color.new(color.gray, 90), text_color=color.white, text_size=size.small)
+    table.cell(stats_tbl, 3, 1, "Lev Short: " + str.tostring(leverageShort, "#.##") + "x", bgcolor=color.new(color.gray, 90), text_color=color.white, text_size=size.small)
+    table.cell(stats_tbl, 3, 2, "Trades: " + str.tostring(trades), bgcolor=color.new(color.gray, 90), text_color=color.white, text_size=size.small)
+else
+    // clear table when disabled
+    if not na(stats_tbl)
+        table.delete(stats_tbl)
+    stats_tbl := table.new(position.bottom_left, 4, 3)
+
+// ═══════════════════════════════════════════════════════════════════════
+// VISUALIZATION: Plot lines and signal markers
+// ═══════════════════════════════════════════════════════════════════════
+// Moving averages
+plot(slowMA_show ? slowMA_value : na, title="Slow MA", color=color.new(color.yellow, 0), linewidth=2)
+plot(fastMA_use ? fastMA_value : na, title="Fast MA", color=color.new(color.blue, 0), linewidth=2)
+
+// Background highlight for backtest window
+bgcolor(backtest_enable and in_window ? color.new(color.yellow, 90) : na)
+
+// Signal markers: show only at candle close (matches alert timing)
+show_signal = (not backtest_enable or in_window) and barstate.isconfirmed
+plotshape(show_signal and longSignal,  title="Open Long",  location=location.belowbar, style=shape.triangleup,   size=size.small, color=color.new(color.green,0), text="OL")
+plotshape(show_signal and shortSignal, title="Open Short", location=location.abovebar, style=shape.triangledown, size=size.small, color=color.new(color.red,0),   text="OS")
+// Exit signals: mutually exclusive - MA takes priority
+plotshape(show_signal and chartExitLong,  title="Close Long",  location=location.abovebar, style=shape.cross, size=size.tiny, color=color.new(color.orange,0), text="CL")
+plotshape(show_signal and chartExitShortSignal, title="Close Short", location=location.abovebar, style=shape.cross, size=size.tiny, color=color.new(color.orange,0), text="CS")
+// SL signals - only show if MA didn't trigger
+plotshape(show_signal and chartSLLong, title="SL Close Long",  location=location.abovebar, style=shape.diamond, size=size.tiny, color=color.new(color.purple,0), text="SL")
+plotshape(show_signal and chartSLShort, title="SL Close Short", location=location.abovebar, style=shape.diamond, size=size.tiny, color=color.new(color.purple,0), text="SL")
+
+// ═══════════════════════════════════════════════════════════════════════
+// ALERTS: For webhook-based trading automation
+// ═══════════════════════════════════════════════════════════════════════
+// Alerts fire when chart timeframe candle closes (matches signal visibility)
+alertcondition(longSignal and barstate.isconfirmed,  title="AMB ENTER LONG",  message="AMB ENTER LONG on {{ticker}}")
+alertcondition(shortSignal and barstate.isconfirmed, title="AMB ENTER SHORT", message="AMB ENTER SHORT on {{ticker}}")
+alertcondition(exitLong and barstate.isconfirmed,    title="AMB EXIT LONG",  message="AMB EXIT LONG on {{ticker}}")
+alertcondition(exitShort and barstate.isconfirmed,   title="AMB EXIT SHORT", message="AMB EXIT SHORT on {{ticker}}")
+// SL alerts - only if it's the sole trigger
+alertcondition(chartSLLong and barstate.isconfirmed, title="AMB EXIT LONG SL", message="AMB EXIT LONG SL on {{ticker}}")
+alertcondition(chartSLShort and barstate.isconfirmed, title="AMB EXIT SHORT SL", message="AMB EXIT SHORT SL on {{ticker}}")
+
+
