@@ -93,49 +93,49 @@ if position_open and barstate.isconfirmed
         shortBelowFastMA := true
 
 // ═══════════════════════════════════════════════════════════════════════
+// CROSSOVER / CROSSUNDER – globale Variablen (CW10002 Fix)
+// Müssen auf jeder Bar ausgewertet werden – nie in Conditions einbetten
+// ═══════════════════════════════════════════════════════════════════════
+cross_above_slowMA = ta.crossover(close, slowMA_value)
+cross_above_fastMA = ta.crossover(close, fastMA_value)
+cross_below_slowMA = ta.crossunder(close, slowMA_value)
+cross_below_fastMA = ta.crossunder(close, fastMA_value)
+
+// ═══════════════════════════════════════════════════════════════════════
 // SIGNAL CONDITIONS
-// All crossing logic uses candle closes (ta.crossover / ta.crossunder)
 // ═══════════════════════════════════════════════════════════════════════
 
 // ── LONG ──────────────────────────────────────────────────────────────
 // OL Entry: Slow MA crossed from below (first time long)
-longEntry   = not position_open and lastSignalDirection != 1 and
-              ta.crossover(close, slowMA_value)
+longEntry   = not position_open and lastSignalDirection != 1 and cross_above_slowMA
 
 // OL Re-Entry: Fast MA crossed from below, still above Slow MA
-longReentry = not position_open and lastSignalDirection == 1 and
-              ta.crossover(close, fastMA_value) and close > slowMA_value
+longReentry = not position_open and lastSignalDirection == 1 and cross_above_fastMA and close > slowMA_value
 
 longSignal  = (longEntry or longReentry) and allowLongs
 
 // CL Exit A: Price was above Fast MA at some point → crosses back below Fast MA
-exitLong_A  = position_open and lastSignalDirection == 1 and
-              longAboveFastMA and ta.crossunder(close, fastMA_value)
+exitLong_A  = position_open and lastSignalDirection == 1 and longAboveFastMA and cross_below_fastMA
 
 // CL Exit B: Price never reached Fast MA since entry → crosses below Slow MA
-exitLong_B  = position_open and lastSignalDirection == 1 and
-              not longAboveFastMA and ta.crossunder(close, slowMA_value)
+exitLong_B  = position_open and lastSignalDirection == 1 and not longAboveFastMA and cross_below_slowMA
 
 exitLong    = exitLong_A or exitLong_B
 
 // ── SHORT ─────────────────────────────────────────────────────────────
 // OS Entry: Slow MA crossed from above (first time short)
-shortEntry   = not position_open and lastSignalDirection != -1 and
-               ta.crossunder(close, slowMA_value)
+shortEntry   = not position_open and lastSignalDirection != -1 and cross_below_slowMA
 
 // OS Re-Entry: Fast MA crossed from above, still below Slow MA
-shortReentry = not position_open and lastSignalDirection == -1 and
-               ta.crossunder(close, fastMA_value) and close < slowMA_value
+shortReentry = not position_open and lastSignalDirection == -1 and cross_below_fastMA and close < slowMA_value
 
 shortSignal  = (shortEntry or shortReentry) and allowShorts
 
 // CS Exit A: Price was below Fast MA at some point → crosses back above Fast MA
-exitShort_A  = position_open and lastSignalDirection == -1 and
-               shortBelowFastMA and ta.crossover(close, fastMA_value)
+exitShort_A  = position_open and lastSignalDirection == -1 and shortBelowFastMA and cross_above_fastMA
 
 // CS Exit B: Price never reached Fast MA since entry → crosses above Slow MA
-exitShort_B  = position_open and lastSignalDirection == -1 and
-               not shortBelowFastMA and ta.crossover(close, slowMA_value)
+exitShort_B  = position_open and lastSignalDirection == -1 and not shortBelowFastMA and cross_above_slowMA
 
 exitShort    = exitShort_A or exitShort_B
 

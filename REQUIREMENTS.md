@@ -68,6 +68,19 @@ ATR als optionaler Puffer, der **pro Situation** (Entry / Re-Entry / Exit) separ
 
 ---
 
+## Dev-Regeln (Entwicklungsprozess)
+
+- **Syntax-Check vor jedem Release:** Code muss fehlerfrei in TradingView kompilieren – keine Warnings, keine Errors
+- **Pine Script CW10002:** `ta.crossover()` / `ta.crossunder()` dürfen **nie** innerhalb von Conditions oder `if`-Blöcken aufgerufen werden. Immer als globale Variable auf oberster Ebene definieren:
+  ```pine
+  cross_above_slowMA = ta.crossover(close, slowMA_value)  // global
+  longEntry = ... and cross_above_slowMA                  // dann verwenden
+  ```
+- **Mehrzeilige Conditions:** In Pine Script v6 erlaubt, aber Operatoren müssen am Zeilenende stehen
+- **Versionierung:** Nach jeder Änderung CHANGELOG.md aktualisieren und git commit + tag setzen
+
+---
+
 ## Default-Parameter (BTCUSDT 1D optimiert)
 
 | Parameter        | Wert  |

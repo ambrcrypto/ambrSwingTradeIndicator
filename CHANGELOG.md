@@ -36,6 +36,17 @@
 
 ---
 
+## [v1.1] – 2026-04-02
+
+### Fixes
+- CW10002: `ta.crossover()` / `ta.crossunder()` aus Conditions extrahiert → globale Variablen `cross_above_slowMA`, `cross_above_fastMA`, `cross_below_slowMA`, `cross_below_fastMA`
+
+### Dev-Regeln hinzugefügt
+- Syntax-Check vor jedem Release
+- Pine Script CW10002-Regel dokumentiert
+
+---
+
 ## [v0.1] – (Vorgänger: ambTradeSignalIndicator)
 
 Erster Prototyp mit ATR-basierter Entry-Logik.
