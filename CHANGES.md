@@ -59,6 +59,36 @@ Change formal abgeschlossen. Flip-Logik ist produktiv in v1.2+. Kein weiterer Ha
 
 ---
 
+## CHG-003 – Erweitertes Backtest-Reporting + Live-Label
+
+| Feld | Inhalt |
+|---|---|
+| **ID** | CHG-003 |
+| **Status** | ✅ Abgeschlossen |
+| **Version** | v1.4 |
+| **Datum** | 2026-04-03 |
+| **Requested by** | User |
+
+### Change Request
+Backtest-Tabelle um weitere Metriken erweitern (MaxDD, PF, AvgW/L, Expectancy). Offene Position soll bei aktivem Backtest (ohne Enddatum) als Unrealized P/L sichtbar sein – sowohl in der Tabelle als auch als Chart-Label.
+
+### Umsetzung
+- Tabelle auf 4×4 erweitert:
+  - Row 2: MaxW / MaxL / MaxDD / PF
+  - Row 3: AvgW / AvgL / Exp (farbig) / Leverage
+- `unrealized_pct` berechnet für offene BT-Position (Long: close/entry, Short: entry/close × Leverage)
+- `end_capital` wird bei offener Position mit unrealisierten % compounded
+- Table-Zelle "End" zeigt `LONG +X%` / `SHORT +X%` farbig wenn Position offen
+- `live_trade_lbl`: var label, wird jeden Bar gelöscht/neu gesetzt mit aktuellem unrealized %; Stil identisch mit Trade-Close-Labels
+
+### Test-Feedback (User)
+Freigegeben durch User am 2026-04-03. Label sichtbar und korrekt formatiert. Tabelle vollständig.
+
+### Abschluss
+Change formal abgeschlossen. In v1.4 produktiv.
+
+---
+
 ## CHG-002 – Bug: SlowMA-Exit fehlt wenn FastMA bereits berührt
 
 | Feld | Inhalt |

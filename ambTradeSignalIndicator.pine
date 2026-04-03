@@ -218,9 +218,10 @@ var bool    bt_position_open   = false
 var int     bt_position_type   = 0
 var float   bt_entry_price     = na
 var int     trades             = 0
-var table   stats_tbl          = table.new(position.bottom_left, 4, 3)
+var table   stats_tbl          = table.new(position.bottom_left, 4, 4)
 var bool    window_initialized = false
 var float[] trade_percs        = array.new_float()
+var label   live_trade_lbl     = na
 
 if backtest_enable
     trade_pct = 0.0
@@ -280,10 +281,21 @@ if backtest_enable
 // ═══════════════════════════════════════════════════════════════════════
 // PERFORMANCE METRICS
 // ═══════════════════════════════════════════════════════════════════════
+
+// Unrealized P/L der offenen Position – wird eingerechnet wenn kein Enddatum gesetzt
+unrealized_pct = 0.0
+if backtest_enable and not bt_use_end_date and bt_position_open
+    if bt_position_type == 1
+        unrealized_pct := ((close - bt_entry_price) / bt_entry_price * 100.0) * leverageLong
+    else if bt_position_type == -1
+        unrealized_pct := ((bt_entry_price - close) / bt_entry_price * 100.0) * leverageShort
+
 end_capital = start_capital
 if array.size(trade_percs) > 0
     for i = 0 to array.size(trade_percs) - 1
         end_capital := end_capital * (1 + array.get(trade_percs, i) / 100.0)
+if unrealized_pct != 0.0
+    end_capital := end_capital * (1 + unrealized_pct / 100.0)
 
 pl_curr = end_capital - start_capital
 pl_pct  = start_capital == 0 ? 0.0 : (pl_curr / start_capital) * 100.0
@@ -309,48 +321,96 @@ if array.size(trade_percs) > 0
 
 win_pct = trades == 0 ? 0.0 : (winning_trades / trades) * 100.0
 
+// ── Extended metrics ─────────────────────────────────────────────────
+sum_wins   = 0.0
+sum_losses = 0.0
+if array.size(trade_percs) > 0
+    for i = 0 to array.size(trade_percs) - 1
+        v = array.get(trade_percs, i)
+        if v >= 0
+            sum_wins   += v
+        else
+            sum_losses += v
+
+avg_win_pct   = winning_trades > 0 ? sum_wins   / winning_trades     : 0.0
+avg_loss_pct  = losing_trades  > 0 ? sum_losses / losing_trades      : 0.0
+profit_factor = sum_losses < 0     ? sum_wins / math.abs(sum_losses) : float(na)
+expectancy    = (win_pct / 100.0 * avg_win_pct) + ((1.0 - win_pct / 100.0) * avg_loss_pct)
+
+max_dd = 0.0
+if array.size(trade_percs) > 0
+    run_cap  = start_capital
+    peak_cap = start_capital
+    for i = 0 to array.size(trade_percs) - 1
+        run_cap  := run_cap * (1.0 + array.get(trade_percs, i) / 100.0)
+        if run_cap > peak_cap
+            peak_cap := run_cap
+        dd_val = (peak_cap - run_cap) / peak_cap * 100.0
+        if dd_val > max_dd
+            max_dd := dd_val
+
+// Live-Label für offene Position auf aktueller Kerze
+if backtest_enable and not bt_use_end_date
+    if not na(live_trade_lbl)
+        label.delete(live_trade_lbl)
+        live_trade_lbl := na
+    if bt_position_open
+        live_lbl_text  = (unrealized_pct >= 0 ? "+" : "") + str.tostring(unrealized_pct, "#.##") + "%"
+        live_lbl_color = unrealized_pct >= 0 ? color.green : color.red
+        live_trade_lbl := label.new(bar_index, close,
+                                    text=live_lbl_text,
+                                    yloc=yloc.abovebar,
+                                    color=live_lbl_color,
+                                    style=label.style_label_down,
+                                    textcolor=color.white)
+
 // ═══════════════════════════════════════════════════════════════════════
 // DISPLAY: Stats table (fixed – no recreation on every bar)
 // ═══════════════════════════════════════════════════════════════════════
 if backtest_enable
-    table.clear(stats_tbl, 0, 0, 3, 2)
+    table.clear(stats_tbl, 0, 0, 3, 3)
     start_date_str = str.tostring(bt_start_year) + "-" +
                      (bt_start_month < 10 ? "0" : "") + str.tostring(bt_start_month) + "-" +
                      (bt_start_day   < 10 ? "0" : "") + str.tostring(bt_start_day)
     end_date_str   = bt_use_end_date ?
                      (str.tostring(bt_end_year) + "-" +
                       (bt_end_month < 10 ? "0" : "") + str.tostring(bt_end_month) + "-" +
-                      (bt_end_day   < 10 ? "0" : "") + str.tostring(bt_end_day)) : "ongoing"
+                      (bt_end_day   < 10 ? "0" : "") + str.tostring(bt_end_day)) :
+                     (bt_position_open ?
+                      (bt_position_type == 1 ? "LONG " : "SHORT ") +
+                      (unrealized_pct >= 0 ? "+" : "") + str.tostring(unrealized_pct, "#.##") + "%" :
+                      "live")
+    live_col = not bt_use_end_date and bt_position_open ?
+               (unrealized_pct >= 0 ? color.new(#00e676, 0) : color.new(#ff5252, 0)) :
+               color.white
 
-    table.cell(stats_tbl, 0, 0, "Start: " + start_date_str,
-               bgcolor=color.new(#1e2130, 0), text_color=color.white, text_size=size.small)
-    table.cell(stats_tbl, 0, 1, "End: "   + end_date_str,
-               bgcolor=color.new(#1e2130, 0), text_color=color.white, text_size=size.small)
-    table.cell(stats_tbl, 0, 2, "Cap: $"  + str.tostring(start_capital, "#.##"),
-               bgcolor=color.new(#1e2130, 0), text_color=color.white, text_size=size.small)
+    bg      = color.new(#1e2130, 0)
+    pl_col  = pl_pct     >= 0 ? color.new(#00e676, 0) : color.new(#ff5252, 0)
+    exp_col = expectancy >= 0 ? color.new(#00e676, 0) : color.new(#ff5252, 0)
 
-    table.cell(stats_tbl, 1, 0, "P/L: "   + str.tostring(pl_pct,  "#.##") + "%",
-               bgcolor=color.new(#1e2130, 0), text_color=color.white, text_size=size.small)
-    table.cell(stats_tbl, 1, 1, "P/L: $"  + str.tostring(pl_curr, "#.##"),
-               bgcolor=color.new(#1e2130, 0), text_color=color.white, text_size=size.small)
-    table.cell(stats_tbl, 1, 2, "End: $"  + str.tostring(end_capital, "#.##"),
-               bgcolor=color.new(#1e2130, 0), text_color=color.white, text_size=size.small)
+    // Row 0: Period + Trades
+    table.cell(stats_tbl, 0, 0, "Start: " + start_date_str,                      bgcolor=bg, text_color=color.white, text_size=size.small)
+    table.cell(stats_tbl, 1, 0, "End: "   + end_date_str,                        bgcolor=bg, text_color=live_col,      text_size=size.small)
+    table.cell(stats_tbl, 2, 0, "Cap: $"  + str.tostring(start_capital, "#.##"), bgcolor=bg, text_color=color.white, text_size=size.small)
+    table.cell(stats_tbl, 3, 0, "Trades: " + str.tostring(trades),               bgcolor=bg, text_color=color.white, text_size=size.small)
 
-    table.cell(stats_tbl, 2, 0, "Max Win: "  + (array.size(trade_percs) > 0 ?
-               str.tostring(computed_max_win,  "#.##") + "%" : "n/a"),
-               bgcolor=color.new(#1e2130, 0), text_color=color.white, text_size=size.small)
-    table.cell(stats_tbl, 2, 1, "Max Loss: " + (array.size(trade_percs) > 0 ?
-               str.tostring(computed_max_loss, "#.##") + "%" : "n/a"),
-               bgcolor=color.new(#1e2130, 0), text_color=color.white, text_size=size.small)
-    table.cell(stats_tbl, 2, 2, "Win %: "    + str.tostring(win_pct, "#.##") + "%",
-               bgcolor=color.new(#1e2130, 0), text_color=color.white, text_size=size.small)
+    // Row 1: P/L
+    table.cell(stats_tbl, 0, 1, "P/L: "  + str.tostring(pl_pct,      "#.##") + "%", bgcolor=bg, text_color=pl_col,       text_size=size.small)
+    table.cell(stats_tbl, 1, 1, "P/L: $" + str.tostring(pl_curr,     "#.##"),        bgcolor=bg, text_color=color.white, text_size=size.small)
+    table.cell(stats_tbl, 2, 1, "End: $" + str.tostring(end_capital, "#.##"),        bgcolor=bg, text_color=color.white, text_size=size.small)
+    table.cell(stats_tbl, 3, 1, "Win: "  + str.tostring(win_pct,     "#.##") + "%",  bgcolor=bg, text_color=color.white, text_size=size.small)
 
-    table.cell(stats_tbl, 3, 0, "Lev Long: "  + str.tostring(leverageLong,  "#.##") + "x",
-               bgcolor=color.new(#1e2130, 0), text_color=color.white, text_size=size.small)
-    table.cell(stats_tbl, 3, 1, "Lev Short: " + str.tostring(leverageShort, "#.##") + "x",
-               bgcolor=color.new(#1e2130, 0), text_color=color.white, text_size=size.small)
-    table.cell(stats_tbl, 3, 2, "Trades: "    + str.tostring(trades),
-               bgcolor=color.new(#1e2130, 0), text_color=color.white, text_size=size.small)
+    // Row 2: Risk metrics
+    table.cell(stats_tbl, 0, 2, "MaxW: "  + (array.size(trade_percs) > 0 ? str.tostring(computed_max_win,  "#.##") + "%" : "n/a"), bgcolor=bg, text_color=color.white, text_size=size.small)
+    table.cell(stats_tbl, 1, 2, "MaxL: "  + (array.size(trade_percs) > 0 ? str.tostring(computed_max_loss, "#.##") + "%" : "n/a"), bgcolor=bg, text_color=color.white, text_size=size.small)
+    table.cell(stats_tbl, 2, 2, "MaxDD: " + (array.size(trade_percs) > 0 ? str.tostring(max_dd, "#.##") + "%"            : "n/a"), bgcolor=bg, text_color=color.white, text_size=size.small)
+    table.cell(stats_tbl, 3, 2, "PF: "    + (na(profit_factor) ? "n/a" : str.tostring(profit_factor, "#.##")),               bgcolor=bg, text_color=color.white, text_size=size.small)
+
+    // Row 3: Expectancy
+    table.cell(stats_tbl, 0, 3, "AvgW: " + (winning_trades > 0 ? str.tostring(avg_win_pct,  "#.##") + "%" : "n/a"), bgcolor=bg, text_color=color.white, text_size=size.small)
+    table.cell(stats_tbl, 1, 3, "AvgL: " + (losing_trades  > 0 ? str.tostring(avg_loss_pct, "#.##") + "%" : "n/a"), bgcolor=bg, text_color=color.white, text_size=size.small)
+    table.cell(stats_tbl, 2, 3, "Exp: "  + str.tostring(expectancy, "#.##") + "%",                                   bgcolor=bg, text_color=exp_col,      text_size=size.small)
+    table.cell(stats_tbl, 3, 3, "L:" + str.tostring(leverageLong, "#.#") + "x S:" + str.tostring(leverageShort, "#.#") + "x", bgcolor=bg, text_color=color.white, text_size=size.small)
 
 // ═══════════════════════════════════════════════════════════════════════
 // VISUALIZATION

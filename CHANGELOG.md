@@ -36,6 +36,25 @@
 
 ---
 
+## [v1.4] – 2026-04-03 ✅ Freigegeben
+
+### Features
+- Erweitertes Backtest-Statistik-Table (4×4-Grid):
+  - MaxDD (Peak-to-Trough Drawdown über alle Trades)
+  - Profit Factor (Summe Gewinne / Summe Verluste)
+  - AvgW / AvgL (Durchschnittlicher Gewinn / Verlust in %)
+  - Expectancy (Erwartungswert pro Trade in %)
+  - P/L% und Exp farbig (grün/rot)
+- Unrealized P/L bei offener Position (Use End Date = off):
+  - Wird in `end_capital` eingerechnet (compound)
+  - Table-Zelle "End" zeigt `LONG +X%` / `SHORT +X%` mit Farbkodierung
+- Live-Label auf aktueller Kerze:
+  - Zeigt unrealisierten P/L der offenen Position als `+X%` / `-X%`
+  - Farbe und Stil identisch mit Trade-Close-Labels (grün/rot, weisse Schrift)
+  - Wird jeden Tick aktualisiert und bei Trade-Close entfernt
+
+---
+
 ## [v1.3] – 2026-04-03 ✅ Freigegeben
 
 ### Fixes
