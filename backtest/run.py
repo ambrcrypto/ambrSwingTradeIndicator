@@ -10,6 +10,7 @@ Usage examples:
 """
 
 import argparse
+import pandas as pd
 from .data import get_slice, get_periods
 from .strategy_amb import AMBParams, run_strategy
 from .engine import compute_metrics
@@ -29,7 +30,7 @@ def main() -> None:
     parser.add_argument("--fast",     type=int,   default=44,   help="Fast MA length")
     parser.add_argument("--fast-type",default="SMA", choices=["SMA","EMA"])
     parser.add_argument("--llong",    type=float, default=3.0,  help="Leverage Long")
-    parser.add_argument("--lshort",   type=float, default=1.25, help="Leverage Short")
+    parser.add_argument("--lshort",    type=float, default=1.4,  help="Leverage Short")
     parser.add_argument("--sl",       type=float, default=None,
                         help="SL risk % (omit = SL off)")
     parser.add_argument("--no-shorts",action="store_true", help="Disable short trades")
@@ -62,23 +63,25 @@ def main() -> None:
         allow_shorts   = not args.no_shorts,
         leverage_long  = args.llong,
         leverage_short = args.lshort,
-        sl_enable      = args.sl is not None,
-        sl_risk_pct    = args.sl if args.sl else 2.0,
+        sl_enable      = args.sl is not None and args.sl > 0,
+        sl_risk_pct    = args.sl if (args.sl is not None and args.sl > 0) else 2.0,
         start_capital  = args.capital,
     )
 
-    # ── Load data ─────────────────────────────────────────────────────────
-    df = get_slice(args.ticker, start, end, force_refresh=args.refresh)
+    # ── Load data (full history for MA warmup; trades filtered by start) ──
+    df = get_slice(args.ticker, start, end, force_refresh=args.refresh, warmup=True)
+    n_window = len(df[df.index >= pd.Timestamp(start)]) if start else len(df)
     console.print(
         f"\n[bold]AMB Backtest[/bold]  "
         f"[cyan]{args.ticker}[/cyan]  "
         f"[yellow]{args.period}[/yellow]  "
-        f"{start} → {end}  ({len(df)} bars)"
+        f"{start} → {end}  ({n_window} bars)"
     )
     console.print(f"  Params: [dim]{params.label()}[/dim]")
 
     # ── Run strategy ──────────────────────────────────────────────────────
-    trades  = run_strategy(df, params)
+    trade_start = pd.Timestamp(start) if start else None
+    trades  = run_strategy(df, params, trade_start=trade_start)
     metrics = compute_metrics(trades, params, start, end)
 
     # ── Output ───────────────────────────────────────────────────────────

@@ -26,7 +26,7 @@ class AMBParams:
     allow_longs:    bool  = True
     allow_shorts:   bool  = True
     leverage_long:  float = 3.0
-    leverage_short: float = 1.25
+    leverage_short: float = 1.4
     sl_enable:      bool  = False
     sl_risk_pct:    float = 2.0     # max capital loss % per trade
     start_capital:  float = 1000.0
@@ -91,12 +91,19 @@ def _calc_ma(series: pd.Series, length: int, ma_type: str) -> np.ndarray:
 # Main strategy runner
 # ─────────────────────────────────────────────────────────────────────────────
 
-def run_strategy(df: pd.DataFrame, params: AMBParams) -> list[Trade]:
+def run_strategy(df: pd.DataFrame, params: AMBParams,
+                 trade_start: "pd.Timestamp | None" = None) -> list[Trade]:
     """
     Run AMB strategy on OHLCV DataFrame.
 
-    df   : pandas DataFrame with columns [open, high, low, close, volume],
-           DatetimeIndex, sorted ascending.
+    df          : pandas DataFrame with columns [open, high, low, close, volume],
+                  DatetimeIndex, sorted ascending.
+                  Should include history BEFORE the target period for MA warmup
+                  so SMAs are valid from the first bar of interest.
+    trade_start : If given, only RECORD trades whose entry date is on or after
+                  this timestamp.  The state machine still warms up from bar 0,
+                  mirroring how TradingView's main state machine runs from the
+                  beginning of history before the backtest window opens.
     Returns list of closed Trade objects.
     Open position at last bar is closed at last close price.
     """
@@ -126,6 +133,12 @@ def run_strategy(df: pd.DataFrame, params: AMBParams) -> list[Trade]:
         if np.isnan(slow_ma[i]) or np.isnan(fast_ma[i]):
             continue
         if np.isnan(slow_ma[i - 1]) or np.isnan(fast_ma[i - 1]):
+            continue
+
+        # Skip pre-window bars – state machine starts FRESH at trade_start,
+        # mirroring TradingView's bt_position_open=False reset at window open.
+        # MAs are valid here because full history was passed in (warmup).
+        if trade_start is not None and dates[i] < trade_start:
             continue
 
         c  = close[i];  c0 = close[i - 1]

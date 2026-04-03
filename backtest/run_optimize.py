@@ -81,7 +81,7 @@ def main() -> None:
         f"\n[bold cyan]AMB Optimizer[/bold cyan]  "
         f"mode=[yellow]{args.mode}[/yellow]  "
         f"sort=[yellow]{args.sort}[/yellow]  "
-        f"~[yellow]{approx}[/yellow] combos/period (before fast≥slow filter)"
+        f"~[yellow]{approx}[/yellow] combos/period (before fast>=slow filter)"
     )
 
     # ── Run ───────────────────────────────────────────────────────────────
@@ -163,8 +163,10 @@ def main() -> None:
                 sl_risk_pct    = float(best_row["sl_risk_pct"]),
             )
             from .data import get_slice
-            df     = get_slice(ticker, start, end)
-            trades = run_strategy(df, best_params)
+            import pandas as pd
+            df     = get_slice(ticker, start, end, warmup=True)
+            trades = run_strategy(df, best_params,
+                                  trade_start=pd.Timestamp(start) if start else None)
             if len(trades) >= 5:
                 mc = run_montecarlo(trades, best_params, n_simulations=args.mc)
                 print_montecarlo(mc, ticker, best_params)

@@ -85,13 +85,21 @@ def get_all(ticker: str, force_refresh: bool = False) -> pd.DataFrame:
 def get_slice(ticker: str,
               start: str | None = None,
               end:   str | None = None,
-              force_refresh: bool = False) -> pd.DataFrame:
+              force_refresh: bool = False,
+              warmup: bool = False) -> pd.DataFrame:
     """
     Return OHLCV slice filtered by [start, end].
     Dates are ISO strings "YYYY-MM-DD" or None.
+
+    warmup=True  : skip the start-date filter so full history (from 2010)
+                   is returned.  Enables the strategy state machine to warm up
+                   MAs and position state before the trade recording window.
+                   Pass trade_start to run_strategy() to filter which trades
+                   are recorded.  Mirrors TradingView behaviour where the main
+                   state machine runs from bar 0 before the backtest window.
     """
     df = get_all(ticker, force_refresh=force_refresh)
-    if start:
+    if start and not warmup:
         df = df[df.index >= pd.Timestamp(start)]
     if end:
         df = df[df.index <= pd.Timestamp(end)]

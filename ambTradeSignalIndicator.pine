@@ -27,7 +27,7 @@ allowShorts = input.bool(true, "Allow Short Trades?", group="Signal Control")
 // ═══════════════════════════════════════════════════════════════════════
 backtest_enable = input.bool(false,  "Enable Backtesting",           group="Backtest")
 leverageLong    = input.float(3.0,   "Leverage (Long)",  minval=0.1, step=0.1, group="Backtest")
-leverageShort   = input.float(1.25,  "Leverage (Short)", minval=0.1, step=0.1, group="Backtest")
+leverageShort   = input.float(1.4,   "Leverage (Short)", minval=0.1, step=0.1, group="Backtest")
 bt_start_year   = input.int(2021,    "Start Year",                   group="Backtest")
 bt_start_month  = input.int(4,       "Start Month", minval=1, maxval=12, group="Backtest")
 bt_start_day    = input.int(14,      "Start Day",   minval=1, maxval=31, group="Backtest")
@@ -300,16 +300,7 @@ if backtest_enable
         window_initialized := false
 
     if in_window
-        if longSignal and not bt_position_open
-            bt_entry_price   := close
-            bt_position_type := 1
-            bt_position_open := true
-
-        if shortSignal and not bt_position_open
-            bt_entry_price   := close
-            bt_position_type := -1
-            bt_position_open := true
-
+        // ── 1. EXITS first (mirrors main state machine – enables flip on same bar) ──
         if exitLong and bt_position_open and bt_position_type == 1
             if exitLong_SL
                 trade_pct := -sl_risk_pct
@@ -333,6 +324,17 @@ if backtest_enable
             bt_position_open := false
             bt_position_type := 0
             bt_entry_price   := na
+
+        // ── 2. ENTRIES second (position is now free after any exit/flip) ──────────
+        if longSignal and not bt_position_open
+            bt_entry_price   := close
+            bt_position_type := 1
+            bt_position_open := true
+
+        if shortSignal and not bt_position_open
+            bt_entry_price   := close
+            bt_position_type := -1
+            bt_position_open := true
 
     if not in_window and not na(sim_end_ts) and time > sim_end_ts and bt_position_open
         if bt_position_type == 1
@@ -478,7 +480,7 @@ if backtest_enable
     table.cell(stats_tbl, 0, 3, "AvgW: " + (winning_trades > 0 ? str.tostring(avg_win_pct,  "#.##") + "%" : "n/a"), bgcolor=bg, text_color=color.white, text_size=size.small)
     table.cell(stats_tbl, 1, 3, "AvgL: " + (losing_trades  > 0 ? str.tostring(avg_loss_pct, "#.##") + "%" : "n/a"), bgcolor=bg, text_color=color.white, text_size=size.small)
     table.cell(stats_tbl, 2, 3, "Exp: "  + str.tostring(expectancy, "#.##") + "%",                                   bgcolor=bg, text_color=exp_col,      text_size=size.small)
-    table.cell(stats_tbl, 3, 3, "L:" + str.tostring(leverageLong, "#.#") + "x S:" + str.tostring(leverageShort, "#.#") + "x", bgcolor=bg, text_color=color.white, text_size=size.small)
+    table.cell(stats_tbl, 3, 3, "L:" + str.tostring(leverageLong, "#.##") + "x S:" + str.tostring(leverageShort, "#.##") + "x", bgcolor=bg, text_color=color.white, text_size=size.small)
 
 // ═══════════════════════════════════════════════════════════════════════
 // VISUALIZATION

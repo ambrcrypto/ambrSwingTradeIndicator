@@ -22,6 +22,7 @@ import json
 from pathlib import Path
 from datetime import datetime
 from tqdm import tqdm
+import pandas as pd
 
 from .strategy_amb import AMBParams
 from .engine import backtest
@@ -136,9 +137,11 @@ def run_period(
     Saves full CSV to results/.
     Liquidation-risk runs (MaxDD >= 80%) are always ranked last.
     """
-    df = get_slice(ticker, start, end)
-    if df.empty or len(df) < 60:
-        print(f"  ⚠ Not enough data for {ticker} / {period_name} ({len(df)} bars)")
+    df = get_slice(ticker, start, end, warmup=True)
+    # Count bars in trade window for reporting (warmup data is excluded)
+    n_window = len(df[df.index >= pd.Timestamp(start)]) if start else len(df)
+    if n_window < 60:
+        print(f"  ⚠ Not enough data for {ticker} / {period_name} ({n_window} bars in window)")
         return []
 
     params_list = _grid_params(mode)
@@ -146,7 +149,7 @@ def run_period(
 
     desc = f"{ticker:<8} {period_name:<22}"
     for params in tqdm(params_list, desc=desc, ncols=90, leave=False):
-        row = backtest(df, params, start, end)
+        row = backtest(df, params, start, end, trade_start=start)
         row["ticker"]      = ticker
         row["period_name"] = period_name
         row["mode"]        = mode
@@ -222,10 +225,10 @@ def cross_period_check(
     avail = get_periods(ticker)
     result = {}
     for pname, (start, end) in avail.items():
-        df = get_slice(ticker, start, end)
+        df = get_slice(ticker, start, end, warmup=True)
         if len(df) < 60:
             continue
-        result[pname] = backtest(df, params, start, end)
+        result[pname] = backtest(df, params, start, end, trade_start=start)
     return result
 
 

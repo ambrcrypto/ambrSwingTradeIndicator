@@ -130,8 +130,11 @@ def _empty_metrics() -> dict:
 # Convenience: run strategy + compute metrics in one call
 # ─────────────────────────────────────────────────────────────────────────────
 
-def backtest(df, params: AMBParams, period_start: str, period_end: str) -> dict:
+def backtest(df, params: AMBParams, period_start: str, period_end: str,
+             trade_start: str | None = None) -> dict:
     """Run strategy on df and return metrics dict."""
     from .strategy_amb import run_strategy
-    trades = run_strategy(df, params)
+    import pandas as pd
+    ts     = pd.Timestamp(trade_start) if trade_start else None
+    trades = run_strategy(df, params, trade_start=ts)
     return compute_metrics(trades, params, period_start, period_end)
