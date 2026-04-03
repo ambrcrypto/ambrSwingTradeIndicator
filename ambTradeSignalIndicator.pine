@@ -44,6 +44,11 @@ bt_end_day      = input.int(31,      "End Day",     minval=1, maxval=31, group="
 start_capital   = input.float(1000.0,"Start Capital", minval=1,      group="Backtest")
 
 // ═══════════════════════════════════════════════════════════════════════
+// INPUTS: Debug / Test Mode
+// ═══════════════════════════════════════════════════════════════════════
+test_mode = input.bool(false, "Test Mode (zeigt Signal-Subtyp)", group="Debug")
+
+// ═══════════════════════════════════════════════════════════════════════
 // HELPER FUNCTIONS
 // ═══════════════════════════════════════════════════════════════════════
 atr_ma(src, len) =>
@@ -115,8 +120,8 @@ longReentry = not position_open and lastSignalDirection == 1 and cross_above_fas
 // CL Exit A: Price was above Fast MA at some point → crosses back below Fast MA
 exitLong_A  = position_open and lastSignalDirection == 1 and longAboveFastMA and cross_below_fastMA
 
-// CL Exit B: Price never reached Fast MA since entry → crosses below Slow MA
-exitLong_B  = position_open and lastSignalDirection == 1 and not longAboveFastMA and cross_below_slowMA
+// CL Exit B: Slow MA crossed downward – always triggers exit regardless of Fast MA state
+exitLong_B  = position_open and lastSignalDirection == 1 and cross_below_slowMA
 
 exitLong    = exitLong_A or exitLong_B
 
@@ -130,8 +135,8 @@ shortReentry = not position_open and lastSignalDirection == -1 and cross_below_f
 // CS Exit A: Price was below Fast MA at some point → crosses back above Fast MA
 exitShort_A  = position_open and lastSignalDirection == -1 and shortBelowFastMA and cross_above_fastMA
 
-// CS Exit B: Price never reached Fast MA since entry → crosses above Slow MA
-exitShort_B  = position_open and lastSignalDirection == -1 and not shortBelowFastMA and cross_above_slowMA
+// CS Exit B: Slow MA crossed upward – always triggers exit regardless of Fast MA state
+exitShort_B  = position_open and lastSignalDirection == -1 and cross_above_slowMA
 
 exitShort    = exitShort_A or exitShort_B
 
@@ -318,34 +323,34 @@ if backtest_enable
                       (bt_end_day   < 10 ? "0" : "") + str.tostring(bt_end_day)) : "ongoing"
 
     table.cell(stats_tbl, 0, 0, "Start: " + start_date_str,
-               bgcolor=color.new(color.gray, 50), text_color=color.white, text_size=size.small)
+               bgcolor=color.new(#1e2130, 0), text_color=color.white, text_size=size.small)
     table.cell(stats_tbl, 0, 1, "End: "   + end_date_str,
-               bgcolor=color.new(color.gray, 50), text_color=color.white, text_size=size.small)
+               bgcolor=color.new(#1e2130, 0), text_color=color.white, text_size=size.small)
     table.cell(stats_tbl, 0, 2, "Cap: $"  + str.tostring(start_capital, "#.##"),
-               bgcolor=color.new(color.gray, 50), text_color=color.white, text_size=size.small)
+               bgcolor=color.new(#1e2130, 0), text_color=color.white, text_size=size.small)
 
     table.cell(stats_tbl, 1, 0, "P/L: "   + str.tostring(pl_pct,  "#.##") + "%",
-               bgcolor=color.new(color.gray, 70), text_color=color.white, text_size=size.small)
+               bgcolor=color.new(#1e2130, 0), text_color=color.white, text_size=size.small)
     table.cell(stats_tbl, 1, 1, "P/L: $"  + str.tostring(pl_curr, "#.##"),
-               bgcolor=color.new(color.gray, 70), text_color=color.white, text_size=size.small)
+               bgcolor=color.new(#1e2130, 0), text_color=color.white, text_size=size.small)
     table.cell(stats_tbl, 1, 2, "End: $"  + str.tostring(end_capital, "#.##"),
-               bgcolor=color.new(color.gray, 70), text_color=color.white, text_size=size.small)
+               bgcolor=color.new(#1e2130, 0), text_color=color.white, text_size=size.small)
 
     table.cell(stats_tbl, 2, 0, "Max Win: "  + (array.size(trade_percs) > 0 ?
                str.tostring(computed_max_win,  "#.##") + "%" : "n/a"),
-               bgcolor=color.new(color.gray, 90), text_color=color.white, text_size=size.small)
+               bgcolor=color.new(#1e2130, 0), text_color=color.white, text_size=size.small)
     table.cell(stats_tbl, 2, 1, "Max Loss: " + (array.size(trade_percs) > 0 ?
                str.tostring(computed_max_loss, "#.##") + "%" : "n/a"),
-               bgcolor=color.new(color.gray, 90), text_color=color.white, text_size=size.small)
+               bgcolor=color.new(#1e2130, 0), text_color=color.white, text_size=size.small)
     table.cell(stats_tbl, 2, 2, "Win %: "    + str.tostring(win_pct, "#.##") + "%",
-               bgcolor=color.new(color.gray, 90), text_color=color.white, text_size=size.small)
+               bgcolor=color.new(#1e2130, 0), text_color=color.white, text_size=size.small)
 
     table.cell(stats_tbl, 3, 0, "Lev Long: "  + str.tostring(leverageLong,  "#.##") + "x",
-               bgcolor=color.new(color.gray, 90), text_color=color.white, text_size=size.small)
+               bgcolor=color.new(#1e2130, 0), text_color=color.white, text_size=size.small)
     table.cell(stats_tbl, 3, 1, "Lev Short: " + str.tostring(leverageShort, "#.##") + "x",
-               bgcolor=color.new(color.gray, 90), text_color=color.white, text_size=size.small)
+               bgcolor=color.new(#1e2130, 0), text_color=color.white, text_size=size.small)
     table.cell(stats_tbl, 3, 2, "Trades: "    + str.tostring(trades),
-               bgcolor=color.new(color.gray, 90), text_color=color.white, text_size=size.small)
+               bgcolor=color.new(#1e2130, 0), text_color=color.white, text_size=size.small)
 
 // ═══════════════════════════════════════════════════════════════════════
 // VISUALIZATION
@@ -357,21 +362,45 @@ bgcolor(backtest_enable and in_window ? color.new(color.yellow, 90) : na)
 
 show_signal = (not backtest_enable or in_window) and barstate.isconfirmed
 
-// Entry signals (longEntry + flipToLong beide als OL, shortEntry + flipToShort beide als OS)
+// Long-Signale unter der Kerze (Dreieck zeigt nach oben), Short-Signale über der Kerze (Dreieck zeigt nach unten)
 plotshape(show_signal and (longEntry or flipToLong),    title="OL Entry",    location=location.belowbar,
-          style=shape.triangleup,   size=size.small, color=color.new(color.green, 0), text="OL")
+          style=shape.triangleup,   size=size.tiny,  color=color.new(color.green, 0), text="OL")
 plotshape(show_signal and longReentry,                  title="OL Re-Entry", location=location.belowbar,
-          style=shape.triangleup,   size=size.tiny,  color=color.new(color.lime,  0), text="RL")
+          style=shape.triangleup,   size=size.tiny,  color=color.new(color.green, 0), text="RL")
 plotshape(show_signal and (shortEntry or flipToShort),  title="OS Entry",    location=location.abovebar,
-          style=shape.triangledown, size=size.small, color=color.new(color.red,   0), text="OS")
+          style=shape.triangledown, size=size.tiny,  color=color.new(color.red,   0), text="OS")
 plotshape(show_signal and shortReentry,                 title="OS Re-Entry", location=location.abovebar,
-          style=shape.triangledown, size=size.tiny,  color=color.new(color.orange,0), text="RS")
+          style=shape.triangledown, size=size.tiny,  color=color.new(color.red,   0), text="RS")
+plotshape(show_signal and exitLong,                     title="Close Long",  location=location.belowbar,
+          style=shape.cross,        size=size.tiny,  color=color.new(color.orange, 0), text="CL")
+plotshape(show_signal and exitShort,                    title="Close Short", location=location.abovebar,
+          style=shape.cross,        size=size.tiny,  color=color.new(color.orange, 0), text="CS")
 
-// Exit signals
-plotshape(show_signal and exitLong,  title="Close Long",  location=location.abovebar,
-          style=shape.cross, size=size.tiny, color=color.new(color.orange, 0), text="CL")
-plotshape(show_signal and exitShort, title="Close Short", location=location.abovebar,
-          style=shape.cross, size=size.tiny, color=color.new(color.orange, 0), text="CS")
+// Test Mode: TC-Gruppen-ID als Label (gegenüberliegende Seite zum Signal)
+if test_mode and show_signal
+    lbl_bg  = color.new(color.gray, 30)
+    lbl_txt = color.white
+    lbl_sz  = size.small
+    if longEntry
+        label.new(bar_index, close, "A01", yloc=yloc.abovebar, color=lbl_bg, style=label.style_label_down, textcolor=lbl_txt, size=lbl_sz)
+    if longReentry
+        label.new(bar_index, close, "B01", yloc=yloc.abovebar, color=lbl_bg, style=label.style_label_down, textcolor=lbl_txt, size=lbl_sz)
+    if flipToLong
+        label.new(bar_index, close, "FL",  yloc=yloc.abovebar, color=lbl_bg, style=label.style_label_down, textcolor=lbl_txt, size=lbl_sz)
+    if exitLong_A
+        label.new(bar_index, close, "C01", yloc=yloc.abovebar, color=lbl_bg, style=label.style_label_down, textcolor=lbl_txt, size=lbl_sz)
+    if exitLong_B
+        label.new(bar_index, close, "C02", yloc=yloc.abovebar, color=lbl_bg, style=label.style_label_down, textcolor=lbl_txt, size=lbl_sz)
+    if shortEntry
+        label.new(bar_index, close, "A03", yloc=yloc.belowbar, color=lbl_bg, style=label.style_label_up,   textcolor=lbl_txt, size=lbl_sz)
+    if shortReentry
+        label.new(bar_index, close, "B04", yloc=yloc.belowbar, color=lbl_bg, style=label.style_label_up,   textcolor=lbl_txt, size=lbl_sz)
+    if flipToShort
+        label.new(bar_index, close, "FS",  yloc=yloc.belowbar, color=lbl_bg, style=label.style_label_up,   textcolor=lbl_txt, size=lbl_sz)
+    if exitShort_A
+        label.new(bar_index, close, "C04", yloc=yloc.belowbar, color=lbl_bg, style=label.style_label_up,   textcolor=lbl_txt, size=lbl_sz)
+    if exitShort_B
+        label.new(bar_index, close, "C05", yloc=yloc.belowbar, color=lbl_bg, style=label.style_label_up,   textcolor=lbl_txt, size=lbl_sz)
 
 // ═══════════════════════════════════════════════════════════════════════
 // ALERTS

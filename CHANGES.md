@@ -7,7 +7,7 @@
 | Feld | Inhalt |
 |---|---|
 | **ID** | CHG-001 |
-| **Status** | 🟡 In Test (Schritt 9) |
+| **Status** | ✅ Abgeschlossen (Schritt 10) |
 | **Version** | v1.2 |
 | **Datum** | 2026-04-03 |
 | **Requested by** | User |
@@ -52,9 +52,50 @@ Umsetzbar. State Machine umstrukturiert: Exits laufen vor Entries. `flipToLong` 
 - TC-08: `position_open=false` → `flipToLong=false`, nur `shortEntry` ✅
 
 ### Test-Feedback (User)
-_Ausstehend_
+Freigegeben durch User am 2026-04-03. Flip-Logik funktioniert korrekt auf Chart verifiziert.
 
 ### Abschluss
-_Ausstehend_
+Change formal abgeschlossen. Flip-Logik ist produktiv in v1.2+. Kein weiterer Handlungsbedarf.
+
+---
+
+## CHG-002 – Bug: SlowMA-Exit fehlt wenn FastMA bereits berührt
+
+| Feld | Inhalt |
+|---|---|
+| **ID** | CHG-002 |
+| **Status** | ✅ Abgeschlossen (Schritt 10) |
+| **Version** | v1.3 |
+| **Datum** | 2026-04-03 |
+| **Requested by** | User (Test-Feedback) |
+
+### Bug-Beschreibung
+Short offen, FastMA je berührt (shortBelowFastMA=true), Kurs kreuzt SlowMA nach oben ohne FastMA zu kreuzen → kein Exit. Gleiches spiegelverkehrt für Long.
+
+**Beispiel:** BTCUSDT 1. Sept 2025, close 109191 > slowMA 109167, fastMA 115537 → kein CS, kein OL.
+
+### Ursache
+`exitShort_B` hatte Bedingung `not shortBelowFastMA` → schloss SlowMA-Exit aus wenn FastMA je berührt. Gleicher Fehler bei `exitLong_B` mit `not longAboveFastMA`.
+
+### Fix
+- `exitLong_B`: `not longAboveFastMA` entfernt → SlowMA-Exit immer
+- `exitShort_B`: `not shortBelowFastMA` entfernt → SlowMA-Exit immer
+
+### Test Cases
+
+| TC | Szenario | Erwartetes Resultat |
+|---|---|---|
+| TC-C07 | Long offen, FastMA je berührt, Kurs kreuzt SlowMA nach unten (nicht FastMA) | CL |
+| TC-C08 | Short offen, FastMA je berührt, Kurs kreuzt SlowMA nach oben (nicht FastMA) | CS + OL (Flip) |
+
+### Pre-Check
+- TC-C07: `exitLong_B` = position_open + dir==1 + cross_below_slowMA ✅ (longAboveFastMA spielt keine Rolle mehr)
+- TC-C08: `exitShort_B` = position_open + dir==-1 + cross_above_slowMA ✅ → `flipToLong` = exitShort + cross_above_slowMA ✅
+
+### Test-Feedback (User)
+Freigegeben durch User am 2026-04-03. CS+OL erscheint korrekt bei BTCUSDT Sept 2025.
+
+### Abschluss
+Change formal abgeschlossen. Bug behoben und in v1.3 produktiv. Kein weiterer Handlungsbedarf.
 
 ---

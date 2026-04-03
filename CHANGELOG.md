@@ -36,7 +36,14 @@
 
 ---
 
-## [v1.2] – 2026-04-03
+## [v1.3] – 2026-04-03 ✅ Freigegeben
+
+### Fixes
+- Bug CHG-002: `exitLong_B` / `exitShort_B` – SlowMA-Exit feuerte nicht wenn FastMA bereits berührt war. `not longAboveFastMA` / `not shortBelowFastMA` Bedingung entfernt. SlowMA-Cross triggert nun immer einen Exit, unabhängig vom FastMA-Zustand.
+
+---
+
+## [v1.2] – 2026-04-03 ✅ Freigegeben
 
 ### Features
 - Flip-Logik: Exit + Entry auf gleicher Kerze wenn Slow MA gekreuzt wird
