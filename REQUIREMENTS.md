@@ -33,6 +33,23 @@
 
 ---
 
+## Flip-Regel (Richtungswechsel auf gleicher Kerze)
+
+Wenn ein Exit durch einen **Slow MA Cross** ausgelöst wird (oder gleichzeitig damit zusammenfällt), öffnet auf **derselben Kerze** eine Position in der Gegenrichtung.
+
+| Situation | Exit | Flip Entry |
+|---|---|---|
+| Long offen → kreuzt Slow MA nach unten | CL | OS gleiche Kerze |
+| Long offen → kreuzt Fast MA nach unten, NICHT Slow MA | CL | – |
+| Long offen → kreuzt Fast MA nach unten UND Slow MA | CL | OS gleiche Kerze |
+| Short offen → kreuzt Slow MA nach oben | CS | OL gleiche Kerze |
+| Short offen → kreuzt Fast MA nach oben, NICHT Slow MA | CS | – |
+| Short offen → kreuzt Fast MA nach oben UND Slow MA | CS | OL gleiche Kerze |
+
+**Kern-Logik:** Flip nur wenn `cross_below_slowMA` (bei Long) bzw. `cross_above_slowMA` (bei Short) auf derselben Kerze true ist.
+
+---
+
 ## ATR-Erweiterung (V2 – noch nicht implementiert)
 
 ATR als optionaler Puffer, der **pro Situation** (Entry / Re-Entry / Exit) separat aktiviert werden kann, um Fehlsignale bei hoher Volatilität zu reduzieren.

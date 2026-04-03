@@ -106,13 +106,11 @@ cross_below_fastMA = ta.crossunder(close, fastMA_value)
 // ═══════════════════════════════════════════════════════════════════════
 
 // ── LONG ──────────────────────────────────────────────────────────────
-// OL Entry: Slow MA crossed from below (first time long)
+// OL Entry: Slow MA crossed from below (first time long, no open position)
 longEntry   = not position_open and lastSignalDirection != 1 and cross_above_slowMA
 
 // OL Re-Entry: Fast MA crossed from below, still above Slow MA
 longReentry = not position_open and lastSignalDirection == 1 and cross_above_fastMA and close > slowMA_value
-
-longSignal  = (longEntry or longReentry) and allowLongs
 
 // CL Exit A: Price was above Fast MA at some point → crosses back below Fast MA
 exitLong_A  = position_open and lastSignalDirection == 1 and longAboveFastMA and cross_below_fastMA
@@ -123,13 +121,11 @@ exitLong_B  = position_open and lastSignalDirection == 1 and not longAboveFastMA
 exitLong    = exitLong_A or exitLong_B
 
 // ── SHORT ─────────────────────────────────────────────────────────────
-// OS Entry: Slow MA crossed from above (first time short)
+// OS Entry: Slow MA crossed from above (first time short, no open position)
 shortEntry   = not position_open and lastSignalDirection != -1 and cross_below_slowMA
 
 // OS Re-Entry: Fast MA crossed from above, still below Slow MA
 shortReentry = not position_open and lastSignalDirection == -1 and cross_below_fastMA and close < slowMA_value
-
-shortSignal  = (shortEntry or shortReentry) and allowShorts
 
 // CS Exit A: Price was below Fast MA at some point → crosses back above Fast MA
 exitShort_A  = position_open and lastSignalDirection == -1 and shortBelowFastMA and cross_above_fastMA
@@ -139,14 +135,40 @@ exitShort_B  = position_open and lastSignalDirection == -1 and not shortBelowFas
 
 exitShort    = exitShort_A or exitShort_B
 
+// ── FLIP: Exit + Entry auf gleicher Kerze via Slow MA Cross ───────────
+// Flip to Short: Long läuft + exitLong + Slow MA wird gleichzeitig gekreuzt
+flipToShort  = exitLong and cross_below_slowMA and allowShorts
+
+// Flip to Long: Short läuft + exitShort + Slow MA wird gleichzeitig gekreuzt
+flipToLong   = exitShort and cross_above_slowMA and allowLongs
+
+// ── FINALE SIGNALE ────────────────────────────────────────────────────
+longSignal   = ((longEntry or longReentry) and allowLongs) or flipToLong
+shortSignal  = ((shortEntry or shortReentry) and allowShorts) or flipToShort
+
 // ═══════════════════════════════════════════════════════════════════════
-// STATE MACHINE: Update on confirmed bar closes only
+// STATE MACHINE: Exits vor Entries (ermöglicht Flip auf gleicher Kerze)
 // ═══════════════════════════════════════════════════════════════════════
+
+// ── 1. EXITS: Position schliessen ────────────────────────────────────
+if (exitLong or exitShort) and barstate.isconfirmed
+    position_open    := false
+    longAboveFastMA  := false
+    shortBelowFastMA := false
+    entry_price      := na
+    if not na(current_entry_line)
+        line.delete(current_entry_line)
+        current_entry_line := na
+    if not na(current_entry_label)
+        label.delete(current_entry_label)
+        current_entry_label := na
+
+// ── 2. ENTRIES: Position öffnen (inkl. Flip) ─────────────────────────
 if longSignal and barstate.isconfirmed
     lastSignalDirection := 1
     position_open       := true
     entry_price         := close
-    longAboveFastMA     := close > fastMA_value  // true if entry close already above Fast MA
+    longAboveFastMA     := close > fastMA_value
     if not na(current_entry_line)
         line.delete(current_entry_line)
     if not na(current_entry_label)
@@ -164,7 +186,7 @@ else if shortSignal and barstate.isconfirmed
     lastSignalDirection := -1
     position_open       := true
     entry_price         := close
-    shortBelowFastMA    := close < fastMA_value  // true if entry close already below Fast MA
+    shortBelowFastMA    := close < fastMA_value
     if not na(current_entry_line)
         line.delete(current_entry_line)
     if not na(current_entry_label)
@@ -177,18 +199,6 @@ else if shortSignal and barstate.isconfirmed
                                      yloc=yloc.price, color=color.new(#0096FF, 50),
                                      style=label.style_label_right, textcolor=color.white,
                                      size=size.small)
-
-if (exitLong or exitShort) and barstate.isconfirmed
-    position_open    := false
-    longAboveFastMA  := false
-    shortBelowFastMA := false
-    entry_price      := na
-    if not na(current_entry_line)
-        line.delete(current_entry_line)
-        current_entry_line := na
-    if not na(current_entry_label)
-        label.delete(current_entry_label)
-        current_entry_label := na
 
 // ═══════════════════════════════════════════════════════════════════════
 // BACKTEST SIMULATION
@@ -347,14 +357,14 @@ bgcolor(backtest_enable and in_window ? color.new(color.yellow, 90) : na)
 
 show_signal = (not backtest_enable or in_window) and barstate.isconfirmed
 
-// Entry signals
-plotshape(show_signal and longEntry,    title="OL Entry",    location=location.belowbar,
+// Entry signals (longEntry + flipToLong beide als OL, shortEntry + flipToShort beide als OS)
+plotshape(show_signal and (longEntry or flipToLong),    title="OL Entry",    location=location.belowbar,
           style=shape.triangleup,   size=size.small, color=color.new(color.green, 0), text="OL")
-plotshape(show_signal and longReentry,  title="OL Re-Entry", location=location.belowbar,
+plotshape(show_signal and longReentry,                  title="OL Re-Entry", location=location.belowbar,
           style=shape.triangleup,   size=size.tiny,  color=color.new(color.lime,  0), text="RL")
-plotshape(show_signal and shortEntry,   title="OS Entry",    location=location.abovebar,
+plotshape(show_signal and (shortEntry or flipToShort),  title="OS Entry",    location=location.abovebar,
           style=shape.triangledown, size=size.small, color=color.new(color.red,   0), text="OS")
-plotshape(show_signal and shortReentry, title="OS Re-Entry", location=location.abovebar,
+plotshape(show_signal and shortReentry,                 title="OS Re-Entry", location=location.abovebar,
           style=shape.triangledown, size=size.tiny,  color=color.new(color.orange,0), text="RS")
 
 // Exit signals

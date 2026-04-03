@@ -36,6 +36,21 @@
 
 ---
 
+## [v1.2] – 2026-04-03
+
+### Features
+- Flip-Logik: Exit + Entry auf gleicher Kerze wenn Slow MA gekreuzt wird
+  - Long offen + cross_below_slowMA → CL + OS gleiche Kerze
+  - Short offen + cross_above_slowMA → CS + OL gleiche Kerze
+  - Fast MA Exit ohne Slow MA Cross → nur CL/CS, kein Flip
+- State Machine umstrukturiert: Exits laufen vor Entries (ermöglicht Flip)
+- `flipToLong` / `flipToShort` als separate Variablen
+
+### Fixes
+- Bug: OL/OS wurde nach Exit nicht ausgelöst wenn Slow MA auf gleicher Kerze gekreuzt
+
+---
+
 ## [v1.1] – 2026-04-02
 
 ### Fixes
