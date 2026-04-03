@@ -97,6 +97,7 @@ ATR als optionaler Puffer, der **pro Situation** (Entry / Re-Entry / Exit) separ
 | **6. Go / No Go** | User | Entscheid |
 | **7. Umsetzung** | Entwickler | Code, Syntax-Check, Code-Review |
 | **8. Pre-Check** | BA + Entwickler | Statischer Code-Check gegen Test Cases |
+| **8b. Status Update** | BA | Test Cases + Code an User übergeben, Status kommunizieren |
 | **9. TradingView Test** | User | Kopieren, testen, Feedback |
 | **10. Abschluss** | BA | Learnings, CHANGELOG, git tag |
 
