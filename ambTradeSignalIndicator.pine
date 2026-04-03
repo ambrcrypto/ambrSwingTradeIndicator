@@ -44,6 +44,14 @@ bt_end_day      = input.int(31,      "End Day",     minval=1, maxval=31, group="
 start_capital   = input.float(1000.0,"Start Capital", minval=1,      group="Backtest")
 
 // ═══════════════════════════════════════════════════════════════════════
+// INPUTS: Stop Loss
+// ═══════════════════════════════════════════════════════════════════════
+sl_enable    = input.bool(false, "Enable Stop Loss",       group="Stop Loss")
+sl_risk_pct  = input.float(2.0,  "Max Risk % per Trade", minval=0.1, step=0.1, group="Stop Loss")
+// Long SL  = EP × (1 - sl_risk_pct / (100 × leverageLong))
+// Short SL = EP × (1 + sl_risk_pct / (100 × leverageShort))
+
+// ═══════════════════════════════════════════════════════════════════════
 // INPUTS: Debug / Test Mode
 // ═══════════════════════════════════════════════════════════════════════
 test_mode = input.bool(false, "Test Mode (zeigt Signal-Subtyp)", group="Debug")
@@ -85,6 +93,8 @@ var bool  shortBelowFastMA    = false  // true = price has closed below Fast MA 
 var float entry_price         = na
 var line  current_entry_line  = na
 var label current_entry_label = na
+var line  sl_line_obj         = na
+var label sl_label_obj        = na
 
 // ═══════════════════════════════════════════════════════════════════════
 // FAST MA STATE TRACKING
@@ -123,7 +133,11 @@ exitLong_A  = position_open and lastSignalDirection == 1 and longAboveFastMA and
 // CL Exit B: Slow MA crossed downward – always triggers exit regardless of Fast MA state
 exitLong_B  = position_open and lastSignalDirection == 1 and cross_below_slowMA
 
-exitLong    = exitLong_A or exitLong_B
+// CL Exit SL: Stop Loss – intrabar low touches/breaks SL level (no flip)
+sl_long_level  = sl_enable and position_open and lastSignalDirection == 1  and not na(entry_price) ? entry_price * (1.0 - sl_risk_pct / (100.0 * leverageLong)) : float(na)
+exitLong_SL    = not na(sl_long_level) and low <= sl_long_level
+
+exitLong    = exitLong_A or exitLong_B or exitLong_SL
 
 // ── SHORT ─────────────────────────────────────────────────────────────
 // OS Entry: Slow MA crossed from above (first time short, no open position)
@@ -138,13 +152,17 @@ exitShort_A  = position_open and lastSignalDirection == -1 and shortBelowFastMA 
 // CS Exit B: Slow MA crossed upward – always triggers exit regardless of Fast MA state
 exitShort_B  = position_open and lastSignalDirection == -1 and cross_above_slowMA
 
-exitShort    = exitShort_A or exitShort_B
+// CS Exit SL: Stop Loss – intrabar high touches/breaks SL level (no flip)
+sl_short_level = sl_enable and position_open and lastSignalDirection == -1 and not na(entry_price) ? entry_price * (1.0 + sl_risk_pct / (100.0 * leverageShort)) : float(na)
+exitShort_SL   = not na(sl_short_level) and high >= sl_short_level
+
+exitShort    = exitShort_A or exitShort_B or exitShort_SL
 
 // ── FLIP: Exit + Entry auf gleicher Kerze via Slow MA Cross ───────────
-// Flip to Short: Long läuft + exitLong + Slow MA wird gleichzeitig gekreuzt
-flipToShort  = exitLong and cross_below_slowMA and allowShorts
+// Flip to Short: Long exit + Slow MA gleichzeitig gekreuzt (auch bei SL-Exit erlaubt)
+flipToShort  = exitLong  and cross_below_slowMA and allowShorts
 
-// Flip to Long: Short läuft + exitShort + Slow MA wird gleichzeitig gekreuzt
+// Flip to Long: Short exit + Slow MA gleichzeitig gekreuzt (auch bei SL-Exit erlaubt)
 flipToLong   = exitShort and cross_above_slowMA and allowLongs
 
 // ── FINALE SIGNALE ────────────────────────────────────────────────────
@@ -167,6 +185,12 @@ if (exitLong or exitShort) and barstate.isconfirmed
     if not na(current_entry_label)
         label.delete(current_entry_label)
         current_entry_label := na
+    if not na(sl_line_obj)
+        line.delete(sl_line_obj)
+        sl_line_obj := na
+    if not na(sl_label_obj)
+        label.delete(sl_label_obj)
+        sl_label_obj := na
 
 // ── 2. ENTRIES: Position öffnen (inkl. Flip) ─────────────────────────
 if longSignal and barstate.isconfirmed
@@ -178,14 +202,28 @@ if longSignal and barstate.isconfirmed
         line.delete(current_entry_line)
     if not na(current_entry_label)
         label.delete(current_entry_label)
+    if not na(sl_line_obj)
+        line.delete(sl_line_obj)
+        sl_line_obj := na
+    if not na(sl_label_obj)
+        label.delete(sl_label_obj)
+        sl_label_obj := na
     current_entry_line  := line.new(bar_index, close, bar_index + 1, close,
                                     extend=extend.right, color=color.new(#0096FF, 0),
                                     style=line.style_dotted, width=1)
-    current_entry_label := label.new(bar_index, close,
+    current_entry_label := label.new(bar_index + 2, close,
                                      text=str.tostring(close, "#.##"),
-                                     yloc=yloc.price, color=color.new(#0096FF, 50),
-                                     style=label.style_label_right, textcolor=color.white,
-                                     size=size.small)
+                                     yloc=yloc.price, color=color.new(#0096FF, 0),
+                                     style=label.style_label_left, textcolor=color.white)
+    if sl_enable
+        sl_lv = close * (1.0 - sl_risk_pct / (100.0 * leverageLong))
+        sl_line_obj  := line.new(bar_index, sl_lv, bar_index + 1, sl_lv,
+                                 extend=extend.right, color=color.new(color.red, 0),
+                                 style=line.style_dotted, width=1)
+        sl_label_obj := label.new(bar_index + 2, sl_lv,
+                                  text=str.tostring(sl_lv, "#.##"),
+                                  yloc=yloc.price, color=color.new(color.red, 0),
+                                  style=label.style_label_left, textcolor=color.white)
 
 else if shortSignal and barstate.isconfirmed
     lastSignalDirection := -1
@@ -196,14 +234,53 @@ else if shortSignal and barstate.isconfirmed
         line.delete(current_entry_line)
     if not na(current_entry_label)
         label.delete(current_entry_label)
+    if not na(sl_line_obj)
+        line.delete(sl_line_obj)
+        sl_line_obj := na
+    if not na(sl_label_obj)
+        label.delete(sl_label_obj)
+        sl_label_obj := na
     current_entry_line  := line.new(bar_index, close, bar_index + 1, close,
                                     extend=extend.right, color=color.new(#0096FF, 0),
                                     style=line.style_dotted, width=1)
-    current_entry_label := label.new(bar_index, close,
+    current_entry_label := label.new(bar_index + 2, close,
                                      text=str.tostring(close, "#.##"),
-                                     yloc=yloc.price, color=color.new(#0096FF, 50),
-                                     style=label.style_label_right, textcolor=color.white,
-                                     size=size.small)
+                                     yloc=yloc.price, color=color.new(#0096FF, 0),
+                                     style=label.style_label_left, textcolor=color.white)
+    if sl_enable
+        sl_lv = close * (1.0 + sl_risk_pct / (100.0 * leverageShort))
+        sl_line_obj  := line.new(bar_index, sl_lv, bar_index + 1, sl_lv,
+                                 extend=extend.right, color=color.new(color.red, 0),
+                                 style=line.style_dotted, width=1)
+        sl_label_obj := label.new(bar_index + 2, sl_lv,
+                                  text=str.tostring(sl_lv, "#.##"),
+                                  yloc=yloc.price, color=color.new(color.red, 0),
+                                  style=label.style_label_left, textcolor=color.white)
+
+// ── EP/SL Label auf rechten Rand aktualisieren (simuliert Price Label) ──
+if position_open and not na(current_entry_label)
+    label.set_x(current_entry_label, bar_index + 2)
+if position_open and not na(entry_price)
+    if sl_enable
+        sl_lv_cur = lastSignalDirection == 1 ? entry_price * (1.0 - sl_risk_pct / (100.0 * leverageLong)) : entry_price * (1.0 + sl_risk_pct / (100.0 * leverageShort))
+        if na(sl_line_obj)
+            sl_line_obj := line.new(bar_index, sl_lv_cur, bar_index + 1, sl_lv_cur,
+                                    extend=extend.right, color=color.new(color.red, 0),
+                                    style=line.style_dotted, width=1)
+        if na(sl_label_obj)
+            sl_label_obj := label.new(bar_index + 2, sl_lv_cur,
+                                      text=str.tostring(sl_lv_cur, "#.##"),
+                                      yloc=yloc.price, color=color.new(color.red, 0),
+                                      style=label.style_label_left, textcolor=color.white)
+        else
+            label.set_x(sl_label_obj, bar_index + 2)
+    else
+        if not na(sl_line_obj)
+            line.delete(sl_line_obj)
+            sl_line_obj := na
+        if not na(sl_label_obj)
+            label.delete(sl_label_obj)
+            sl_label_obj := na
 
 // ═══════════════════════════════════════════════════════════════════════
 // BACKTEST SIMULATION
@@ -249,7 +326,10 @@ if backtest_enable
             bt_position_open := true
 
         if exitLong and bt_position_open and bt_position_type == 1
-            trade_pct := ((close - bt_entry_price) / bt_entry_price * 100.0) * leverageLong
+            if exitLong_SL
+                trade_pct := -sl_risk_pct
+            else
+                trade_pct := ((close - bt_entry_price) / bt_entry_price * 100.0) * leverageLong
             array.push(trade_percs, trade_pct)
             trades += 1
             create_trade_label(trade_pct)
@@ -258,7 +338,10 @@ if backtest_enable
             bt_entry_price   := na
 
         if exitShort and bt_position_open and bt_position_type == -1
-            trade_pct := ((bt_entry_price - close) / bt_entry_price * 100.0) * leverageShort
+            if exitShort_SL
+                trade_pct := -sl_risk_pct
+            else
+                trade_pct := ((bt_entry_price - close) / bt_entry_price * 100.0) * leverageShort
             array.push(trade_percs, trade_pct)
             trades += 1
             create_trade_label(trade_pct)
@@ -431,10 +514,14 @@ plotshape(show_signal and (shortEntry or flipToShort),  title="OS Entry",    loc
           style=shape.triangledown, size=size.tiny,  color=color.new(color.red,   0), text="OS")
 plotshape(show_signal and shortReentry,                 title="OS Re-Entry", location=location.abovebar,
           style=shape.triangledown, size=size.tiny,  color=color.new(color.red,   0), text="RS")
-plotshape(show_signal and exitLong,                     title="Close Long",  location=location.belowbar,
+plotshape(show_signal and exitLong  and not exitLong_SL,  title="Close Long",  location=location.belowbar,
           style=shape.cross,        size=size.tiny,  color=color.new(color.orange, 0), text="CL")
-plotshape(show_signal and exitShort,                    title="Close Short", location=location.abovebar,
+plotshape(show_signal and exitShort and not exitShort_SL, title="Close Short", location=location.abovebar,
           style=shape.cross,        size=size.tiny,  color=color.new(color.orange, 0), text="CS")
+plotshape(show_signal and exitLong_SL,                  title="SL Long",     location=location.belowbar,
+          style=shape.xcross,       size=size.tiny,  color=color.new(color.red,    0), text="SL")
+plotshape(show_signal and exitShort_SL,                 title="SL Short",    location=location.abovebar,
+          style=shape.xcross,       size=size.tiny,  color=color.new(color.red,    0), text="SL")
 
 // Test Mode: TC-Gruppen-ID als Label (gegenüberliegende Seite zum Signal)
 if test_mode and show_signal

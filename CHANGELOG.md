@@ -36,6 +36,24 @@
 
 ---
 
+## [v1.5] – 2026-04-03 ✅ Freigegeben
+
+### Features
+- Stop Loss (CHG-004): Intrabar SL für Long und Short
+  - Ein Input `Max Risk % per Trade` (Default 2%, minval 0.1%)
+  - SL-Level automatisch aus Leverage berechnet:
+    - Long SL = `EP × (1 − risk / (100 × leverageLong))`
+    - Short SL = `EP × (1 + risk / (100 × leverageShort))`
+  - SL prüft Low (Long) / High (Short) intrabar – kein Warten auf Kerzenschluss
+  - Kein Flip bei SL-Exit (`flipToShort`/`flipToLong` ausgeschlossen)
+  - Visualisierung: rote dotted Linie + Label am rechten Rand (live-tracking)
+  - EP-Linie/Label blau (dotted, rechter Rand), SL-Linie/Label rot
+  - Backtest P/L bei SL-Hit: exakt `−sl_risk_pct` (Leverage bereits eingerechnet)
+  - SL-Exit zeigt `SL`-Marker (xcross, rot) statt `CL`/`CS`
+  - SL-Linie/Label werden nachträglich erstellt falls SL nach Trade-Eröffnung aktiviert wird
+
+---
+
 ## [v1.4] – 2026-04-03 ✅ Freigegeben
 
 ### Features

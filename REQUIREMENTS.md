@@ -68,9 +68,17 @@ ATR als optionaler Puffer, der **pro Situation** (Entry / Re-Entry / Exit) separ
 
 ---
 
-## Stop Loss (V2 – noch nicht implementiert)
-- Entry-Price SL: Kurs schliesst unter/über Einstiegspreis
-- Optional mit ATR-Buffer
+## Stop Loss (implementiert ab v1.5)
+
+- **Aktivierung:** `Enable Stop Loss` (bool, default off)
+- **Input:** `Max Risk % per Trade` (float, default 2.0%, minval 0.1%)
+- **SL-Level Berechnung** (abhängig von Leverage):
+  - Long SL = `EP × (1 − sl_risk_pct / (100 × leverageLong))`
+  - Short SL = `EP × (1 + sl_risk_pct / (100 × leverageShort))`
+- **Trigger:** Intrabar (`low <= sl_long_level` / `high >= sl_short_level`)
+- **Kein Flip** bei SL-Exit
+- **Visualisierung:** rote dotted Linie + Label am rechten Chartrand
+- **Backtest P/L:** exakt `−sl_risk_pct` (Leverage bereits in SL-Abstand eingerechnet)
 
 ---
 

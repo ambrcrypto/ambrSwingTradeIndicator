@@ -1,3 +1,10 @@
-.DS_Store
-*.tmp
-Thumbs.db
+﻿# Python virtual environment
+.venv/
+__pycache__/
+*.pyc
+
+# Cached market data (re-downloadable)
+backtest/cache/
+
+# Result output files (keep in git if desired, but often large)
+# backtest/results/

@@ -89,7 +89,56 @@ Change formal abgeschlossen. In v1.4 produktiv.
 
 ---
 
-## CHG-002 – Bug: SlowMA-Exit fehlt wenn FastMA bereits berührt
+## CHG-004 – Stop Loss Feature
+
+| Feld | Inhalt |
+|---|---|
+| **ID** | CHG-004 |
+| **Status** | ✅ Abgeschlossen |
+| **Version** | v1.5 |
+| **Datum** | 2026-04-03 |
+| **Requested by** | User |
+
+### Change Request
+Stop Loss für Long und Short. Intrabar-Prüfung (Low/High). Kein Flip bei SL-Exit. Visualisierung als Linie + Label. Backtest-Integration.
+
+### Analyse (BA) – 5 Klärungsfragen
+1. SL-Level: Fixer %-Offset vom EP oder technisch (Swing Low/High)? → Prozentual
+2. Ein SL für L+S oder getrennt? → Ein Input, aber Berechnung je nach Leverage
+3. Intrabar (Low/High) oder Close-basiert? → Intrabar
+4. Flip bei SL-Exit erlaubt? → Nein
+5. Visualisierung? → Linie + Label am rechten Rand
+
+### Finale Spezifikation
+- Input: `sl_risk_pct` = max. Kapitalverlust pro Trade (%), Default 2.0%, minval 0.1%
+- Long SL = `EP × (1 − sl_risk_pct / (100 × leverageLong))`
+- Short SL = `EP × (1 + sl_risk_pct / (100 × leverageShort))`
+- Trigger: `low <= sl_long_level` (Long) / `high >= sl_short_level` (Short)
+- Flip erlaubt bei SL-Exit wenn Slow MA gleichzeitig gekreuzt: `flipToLong = exitShort and cross_above_slowMA ...` (kein `not exitShort_SL` mehr)
+- Backtest P/L: `−sl_risk_pct` (exakt, da Abstand leverage-korrekt berechnet)
+- CL/CS Marker bei SL-Exit unterdrückt (nur SL-Marker)
+
+### Test Cases
+
+| TC | Szenario | Erwartetes Resultat |
+|---|---|---|
+| TC-SL-01 | Long offen, SL enable, Low dieser Kerze ≤ sl_long_level | exitLong_SL=true, SL-Marker, kein Flip, kein CL-Marker |
+| TC-SL-02 | Long offen, SL enable, Low > sl_long_level | exitLong_SL=false, Trade läuft weiter |
+| TC-SL-03 | Short offen, SL enable, High ≥ sl_short_level | exitShort_SL=true, SL-Marker, kein Flip, kein CS-Marker |
+| TC-SL-04 | Short offen, SL enable, High < sl_short_level | exitShort_SL=false, Trade läuft weiter |
+| TC-SL-05 | SL disable | exitLong_SL=false, exitShort_SL=false immer |
+| TC-SL-06 | SL enable, nach Trade-Eröffnung aktiviert | SL-Linie/Label erscheinen auf nächster Bar |
+| TC-SL-07 | SL enable, sl_risk_pct=2%, leverageLong=3x, EP=68793 | sl_long_level = 68793 × (1 − 2/(100×3)) = 68334 |
+| TC-SL-08 | SL enable, sl_risk_pct=2%, leverageShort=1.25x, EP=68793 | sl_short_level = 68793 × (1 + 2/(100×1.25)) = 69893 |
+| TC-SL-09 | SL-Exit im Backtest | trade_pct = −sl_risk_pct (unabhängig von close) |
+| TC-SL-10 | SL-Exit gleichzeitig mit Slow MA Cross | Kein Flip (SL hat Vorrang) |
+
+### Test-Feedback (User)
+Freigegeben durch User am 2026-04-03. SL-Linie und Label sichtbar, SL-Trigger korrekt, Overlap-Problem behoben (CL/CS unterdrückt bei SL-Exit).
+
+### Abschluss
+Change formal abgeschlossen. Stop Loss produktiv in v1.5.
+
 
 | Feld | Inhalt |
 |---|---|
