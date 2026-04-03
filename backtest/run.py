@@ -30,7 +30,7 @@ def main() -> None:
     parser.add_argument("--fast",     type=int,   default=44,   help="Fast MA length")
     parser.add_argument("--fast-type",default="SMA", choices=["SMA","EMA"])
     parser.add_argument("--llong",    type=float, default=3.0,  help="Leverage Long")
-    parser.add_argument("--lshort",    type=float, default=1.4,  help="Leverage Short")
+    parser.add_argument("--lshort",    type=float, default=1.3,  help="Leverage Short")
     parser.add_argument("--sl",       type=float, default=None,
                         help="SL risk % (omit = SL off)")
     parser.add_argument("--no-shorts",action="store_true", help="Disable short trades")

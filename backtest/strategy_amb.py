@@ -26,7 +26,7 @@ class AMBParams:
     allow_longs:    bool  = True
     allow_shorts:   bool  = True
     leverage_long:  float = 3.0
-    leverage_short: float = 1.4
+    leverage_short: float = 1.3
     sl_enable:      bool  = False
     sl_risk_pct:    float = 2.0     # max capital loss % per trade
     start_capital:  float = 1000.0
