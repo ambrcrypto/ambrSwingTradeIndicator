@@ -17,12 +17,6 @@ fastMA_type = input.string("SMA",    "Type",          options=["SMA","EMA"], gro
 fastMA_len  = input.int(44,          "Length",        minval=1, group="Fast MA")
 
 // ═══════════════════════════════════════════════════════════════════════
-// INPUTS: ATR (Reserved for V2 – not used in signals)
-// ═══════════════════════════════════════════════════════════════════════
-atrLength    = input.int(14,    "ATR Length",    minval=1, group="ATR (V2)")
-atrSmoothing = input.string("RMA", "ATR Smoothing", options=["RMA","SMA","EMA","WMA"], group="ATR (V2)")
-
-// ═══════════════════════════════════════════════════════════════════════
 // INPUTS: Signal Control
 // ═══════════════════════════════════════════════════════════════════════
 allowLongs  = input.bool(true, "Allow Long Trades?",  group="Signal Control")
@@ -59,13 +53,6 @@ test_mode = input.bool(false, "Test Mode (zeigt Signal-Subtyp)", group="Debug")
 // ═══════════════════════════════════════════════════════════════════════
 // HELPER FUNCTIONS
 // ═══════════════════════════════════════════════════════════════════════
-atr_ma(src, len) =>
-    switch atrSmoothing
-        "RMA" => ta.rma(src, len)
-        "SMA" => ta.sma(src, len)
-        "EMA" => ta.ema(src, len)
-        => ta.wma(src, len)
-
 create_trade_label(pct) =>
     lbl_text  = (pct >= 0 ? "+" : "") + str.tostring(pct, "#.##") + "%"
     lbl_color = pct >= 0 ? color.green : color.red
@@ -80,8 +67,6 @@ slowMA_value = request.security(syminfo.tickerid, slowMA_tf, slowMA_calc, barmer
 
 fastMA_calc  = fastMA_type == "SMA" ? ta.sma(close, fastMA_len) : ta.ema(close, fastMA_len)
 fastMA_value = request.security(syminfo.tickerid, fastMA_tf, fastMA_calc, barmerge.gaps_off, barmerge.lookahead_off)
-
-atr = atr_ma(ta.tr(true), atrLength)  // computed but not used in V1 signals
 
 // ═══════════════════════════════════════════════════════════════════════
 // STATE VARIABLES
