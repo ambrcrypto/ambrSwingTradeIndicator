@@ -85,6 +85,25 @@ ATR als optionaler Puffer, der **pro Situation** (Entry / Re-Entry / Exit) separ
 
 ---
 
+## Change-Prozess
+
+| Schritt | Wer | Was |
+|---|---|---|
+| **1. Change Request** | User | Beschreibung des Changes |
+| **2. Analyse** | BA | Eindeutige ID vergeben, Doku updaten, Rückfragen |
+| **3. Review** | BA + Trading Experte | Kritisch hinterfragen, Alternativen prüfen |
+| **4. Test Cases** | BA + Trading Experte | Testfälle definieren vor Umsetzung |
+| **5. Machbarkeit** | Entwickler | Technische Prüfung, Aufwandschätzung |
+| **6. Go / No Go** | User | Entscheid |
+| **7. Umsetzung** | Entwickler | Code, Syntax-Check, Code-Review |
+| **8. Pre-Check** | BA + Entwickler | Statischer Code-Check gegen Test Cases |
+| **9. TradingView Test** | User | Kopieren, testen, Feedback |
+| **10. Abschluss** | BA | Learnings, CHANGELOG, git tag |
+
+Alle Changes werden in `CHANGES.md` mit eindeutiger ID (CHG-XXX) verwaltet.
+
+---
+
 ## Dev-Regeln (Entwicklungsprozess)
 
 - **Syntax-Check vor jedem Release:** Code muss fehlerfrei in TradingView kompilieren – keine Warnings, keine Errors
