@@ -2,6 +2,37 @@
 
 ---
 
+## [v1.5.4] – 2026-04-04 ✅ Freigegeben
+
+### Features
+
+#### Pine Script: Manual Entry Price (CHG-005)
+- Neue Input-Gruppe `Manual Entry`:
+  - `Use Manual EP` (bool, default off)
+  - `Entry Price` (float, default 0.0)
+- Wenn aktiv: eigener EP wird für visuelle EP/SL-Linie und `End:`-Feld verwendet
+- Klare Trennung der Variablen:
+  - `entry_price` = `eff_ep` (manual oder close) → nur für Chart-Visualisierung
+  - `ep_for_sl_trigger` = immer `close` des Signal-Bars → für SL-Trigger-Berechnung (historisch korrekt)
+  - `bt_entry_price` = immer `close` → für Backtest P/L-Statistik (unveränderlich)
+  - `display_unrealized` = basiert auf `manual_ep_val` wenn aktiv → nur für `End:`-Feld + Live-Label
+- Garantiert: P/L-Statistik (WR, PF, MaxDD, Exp) bleibt immer auf Strategie-Basis
+
+#### Pine Script: BTC-optimierte Defaults
+- `slowMA_type`: EMA → **SMA** (robuster über Perioden)
+- `fastMA_len`: 44 → **60** (weniger Fehlsignale)
+- `leverageLong`: 3.0 → **4.0** (Robustness-Optimum)
+- `sl_risk_pct`: 8.0 → **9.0** (Robustness-Optimum)
+
+#### Python Backtest: Robustness Score (Step 2)
+- `optimize.py`: `run_robustness()` – bewertet Top-N Konfigurationen über 4 Sub-Perioden
+- `report.py`: `print_robustness_results()` – formatierte Ausgabe mit Min/Avg Calmar
+- `run_optimize.py`: `--robustness` / `--robustness-sort` Flags
+- `ticker_config.py`: BTC-USD auf neue Werte aktualisiert (SMA/60/4×/9%)
+- Winner BTC: SMA130 / SMA60 / LL4× / SL9%, MinCalmar = 2.12
+
+---
+
 ## [v1.0] – 2026-04-02
 
 ### Indikator-Name

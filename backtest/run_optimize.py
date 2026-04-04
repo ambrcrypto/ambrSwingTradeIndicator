@@ -27,7 +27,7 @@ from .data import get_periods, TICKER_MAP
 from .strategy_amb import AMBParams
 from .strategy_amb import run_strategy
 from .engine import compute_metrics
-from .optimize import run_period, run_all, cross_period_check, GRIDS
+from .optimize import run_period, run_all, cross_period_check, run_robustness, GRIDS
 from .montecarlo import run_montecarlo
 from .report import (
     console,
@@ -35,6 +35,7 @@ from .report import (
     print_cross_period,
     print_montecarlo,
     print_best_summary,
+    print_robustness_results,
 )
 
 ALL_TICKERS = ["BTC-USD", "ETH-USD", "VOO"]
@@ -58,6 +59,11 @@ def main() -> None:
                         help="Minimum trades to include result")
     parser.add_argument("--cross-check", action="store_true",
                         help="After optimization, test best params across all periods")
+    parser.add_argument("--robustness", action="store_true",
+                        help="Multi-period robustness optimizer: score each combo by worst-case Calmar across all periods")
+    parser.add_argument("--robustness-sort", default="min_calmar",
+                        choices=["min_calmar", "mean_calmar"],
+                        help="Robustness scoring metric (default: min_calmar = worst-case Calmar)")
     parser.add_argument("--mc",      type=int, default=500,
                         help="Monte Carlo sims on best result (0 = skip)")
     parser.add_argument("--refresh", action="store_true",
@@ -86,6 +92,47 @@ def main() -> None:
         f"sort=[yellow]{args.sort}[/yellow]  "
         f"~[yellow]{approx}[/yellow] combos/period (before fast>=slow filter)"
     )
+
+    # ── Robustness mode ───────────────────────────────────────────────────
+    if args.robustness:
+        for ticker in tickers:
+            rob_results = run_robustness(
+                ticker     = ticker,
+                mode       = args.mode,
+                min_trades = args.min_trades,
+                sort_by    = args.robustness_sort,
+            )
+            rb_periods = [p for p in get_periods(ticker).keys() if p != "full"]
+            print_robustness_results(rob_results, ticker, rb_periods, top_n=args.top)
+
+            # Optionally show cross-period breakdown for top result
+            if rob_results and args.cross_check:
+                br = rob_results[0]
+                best_params = AMBParams(
+                    slow_ma_len    = int(br["slow_ma_len"]),
+                    slow_ma_type   = br["slow_ma_type"],
+                    fast_ma_len    = int(br["fast_ma_len"]),
+                    fast_ma_type   = br["fast_ma_type"],
+                    use_fast_ma    = br.get("use_fast_ma", True) in (True, "True"),
+                    allow_longs    = br["allow_longs"] in (True, "True"),
+                    allow_shorts   = br["allow_shorts"] in (True, "True"),
+                    leverage_long  = float(br["leverage_long"]),
+                    leverage_short = float(br["leverage_short"]),
+                    sl_enable      = br["sl_enable"] in (True, "True"),
+                    sl_risk_pct    = float(br["sl_risk_pct"]),
+                )
+                console.print(
+                    f"\n[bold]Cross-Period Breakdown[/bold]  "
+                    f"[dim]Best robust params on all periods[/dim]"
+                )
+                cross = cross_period_check(ticker, best_params)
+                print_cross_period(cross, ticker, best_params)
+
+        console.print(
+            f"\n[dim]Results saved to: backtest/results/[/dim]\n"
+            f"[dim]Best params JSON: backtest/results/best_*.json[/dim]"
+        )
+        return
 
     # ── Run ───────────────────────────────────────────────────────────────
     if args.ticker == "all" or periods is None:

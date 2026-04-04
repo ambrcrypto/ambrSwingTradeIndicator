@@ -183,6 +183,84 @@ def print_top_results(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Robustness optimizer results table
+# ─────────────────────────────────────────────────────────────────────────────
+
+_PERIOD_LABELS: dict[str, str] = {
+    "2021_default":       "2021d",
+    "bull_2020_2021":     "Bull20",
+    "bear_2022":          "Bear22",
+    "recovery_2023_2025": "Rec23",
+    "last_2y":            "L2y",
+}
+
+
+def print_robustness_results(
+    results: list[dict],
+    ticker:  str,
+    periods: list[str],
+    top_n:   int = 15,
+) -> None:
+    """Show top-N param combos ranked by worst-case Calmar (robustness score)."""
+    rows = results[:top_n]
+    if not rows:
+        console.print(f"[yellow]No robust results for {ticker}[/yellow]")
+        return
+
+    period_labels = [_PERIOD_LABELS.get(p, p[:6]) for p in periods]
+    title = (
+        f"[bold cyan]Robustness Top {len(rows)} \u2013 {ticker}"
+        f"  ({len(periods)} periods, min-Calmar scoring)[/bold cyan]"
+    )
+    t = Table(title=title, box=box.SIMPLE_HEAD, show_lines=False)
+    t.add_column("#",      style="dim", width=3)
+    t.add_column("SlowMA", width=8)
+    t.add_column("FastMA", width=8)
+    t.add_column("LevL",   width=5)
+    t.add_column("SL",     width=6)
+    t.add_column("Shrt",   width=5)
+    t.add_column("nPos",   width=5,  justify="right")
+    t.add_column("MinCal", width=8,  justify="right")
+    t.add_column("AvgCal", width=8,  justify="right")
+    for lbl in period_labels:
+        t.add_column(lbl,  width=7,  justify="right")
+
+    for i, r in enumerate(rows, 1):
+        sl_str  = f"{r['sl_risk_pct']:.0f}%" if r["sl_enable"] else "off"
+        min_c   = float(r["min_calmar"])
+        min_txt = Text(
+            f"{min_c:.2f}",
+            style="bold green" if min_c > 5 else ("green" if min_c > 2 else "yellow"),
+        )
+        avg_txt = Text(f"{float(r['mean_calmar']):.2f}", style="cyan")
+
+        period_cols = []
+        for p in periods:
+            c = r.get(f"calmar_{p}")
+            if c is None:
+                period_cols.append(Text("\u2014", style="dim"))
+            else:
+                c = float(c)
+                period_cols.append(
+                    Text(f"{c:.1f}", style="green" if c > 0 else "red")
+                )
+
+        t.add_row(
+            str(i),
+            f"{r['slow_ma_len']}{r['slow_ma_type'][0]}",
+            f"{r['fast_ma_len']}{r['fast_ma_type'][0]}",
+            str(r["leverage_long"]),
+            sl_str,
+            "Y" if r["allow_shorts"] else "N",
+            str(r["n_positive"]),
+            min_txt,
+            avg_txt,
+            *period_cols,
+        )
+    console.print(t)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Cross-period robustness table
 # ─────────────────────────────────────────────────────────────────────────────
 

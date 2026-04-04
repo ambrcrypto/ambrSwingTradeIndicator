@@ -273,6 +273,109 @@ def run_all(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Multi-period robustness optimizer
+# ─────────────────────────────────────────────────────────────────────────────
+
+def run_robustness(
+    ticker:     str,
+    mode:       str = "quick",
+    min_trades: int = 3,
+    periods:    list[str] | None = None,
+    sort_by:    str = "min_calmar",   # "min_calmar" | "mean_calmar"
+) -> list[dict]:
+    """
+    Multi-period robustness optimizer.
+
+    Runs every param combo across ALL specified periods (default: all except 'full').
+    Scores each combo by its worst-case Calmar – the param set that performs best
+    in its weakest period wins.  Only combos with >= min_trades in EVERY period
+    are included.
+
+    sort_by:
+      "min_calmar"  – maximize worst-case Calmar (most conservative, default)
+      "mean_calmar" – maximize average Calmar across periods
+
+    Returns list of dicts sorted best-first, CSV saved to results/.
+    Each row: params + min_calmar / mean_calmar / n_positive + per-period calmar/ann/maxdd.
+    """
+    avail = get_periods(ticker)
+    # Default: exclude 'full' (overlaps with all regime periods)
+    if periods is None:
+        periods = [p for p in avail.keys() if p != "full"]
+
+    # Load data for all periods upfront (avoid repeated I/O per combo)
+    period_data: dict[str, tuple] = {}
+    for pname in periods:
+        if pname not in avail:
+            continue
+        start, end = avail[pname]
+        df = get_slice(ticker, start, end, warmup=True)
+        ref_ts   = pd.Timestamp(start) if start else df.index[0]
+        n_window = len(df[df.index >= ref_ts])
+        if n_window < 60:
+            continue
+        period_data[pname] = (start, end, df)
+
+    if not period_data:
+        return []
+
+    pnames      = list(period_data.keys())
+    params_list = _grid_params(mode)
+    results: list[dict] = []
+
+    desc = f"{ticker:<8} robustness ({len(pnames)} periods)"
+    for params in tqdm(params_list, desc=desc, ncols=90, leave=False):
+        calmars: list[float]      = []
+        period_metrics: dict[str, dict] = {}
+        skip = False
+
+        for pname in pnames:
+            start, end, df = period_data[pname]
+            row = backtest(df, params, start, end, trade_start=start)
+            if row["trades"] < min_trades:
+                skip = True
+                break
+            period_metrics[pname] = row
+            calmars.append(float(row["calmar"]))
+
+        if skip or not calmars:
+            continue
+
+        min_calmar  = min(calmars)
+        mean_calmar = sum(calmars) / len(calmars)
+        n_positive  = sum(1 for c in calmars if c > 0)
+
+        combo_row: dict = {
+            "min_calmar":  min_calmar,
+            "mean_calmar": mean_calmar,
+            "n_positive":  n_positive,
+            "n_periods":   len(calmars),
+        }
+        combo_row.update(params.as_dict())
+        for pname, m in period_metrics.items():
+            combo_row[f"calmar_{pname}"]  = float(m["calmar"])
+            combo_row[f"ann_{pname}"]     = float(m["ann_return"])
+            combo_row[f"maxdd_{pname}"]   = float(m["max_dd"])
+            combo_row[f"trades_{pname}"]  = int(m["trades"])
+
+        results.append(combo_row)
+
+    # Sort: profitable in most periods first, then by chosen metric
+    if sort_by == "mean_calmar":
+        results.sort(key=lambda r: (-r["n_positive"], -r["mean_calmar"]))
+    else:  # min_calmar (default)
+        results.sort(key=lambda r: (-r["n_positive"], -r["min_calmar"]))
+
+    # Save CSV
+    ts     = datetime.now().strftime("%Y%m%d_%H%M%S")
+    safe_t = ticker.replace("-", "_").replace("/", "_")
+    csv_path = RESULTS_DIR / f"{safe_t}_robustness_{mode}_{ts}.csv"
+    _save_csv(results, csv_path)
+
+    return results
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Cross-period robustness check
 # ─────────────────────────────────────────────────────────────────────────────
 

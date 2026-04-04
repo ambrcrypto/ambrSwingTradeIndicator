@@ -128,11 +128,14 @@ Alle Changes werden in `CHANGES.md` mit eindeutiger ID (CHG-XXX) verwaltet.
 
 ## Default-Parameter (BTCUSDT 1D optimiert)
 
-| Parameter        | Wert  |
-|------------------|-------|
-| Slow MA          | 130 SMA, Daily |
-| Fast MA          | 44 SMA, Daily  |
-| ATR Length       | 14 (RMA) – V2  |
-| Leverage Long    | 3.0x           |
-| Leverage Short   | 1.25x          |
-| Backtest Start   | 2021-04-14     |
+_Aktualisiert v1.5.4 – Robustness-Optimum (MinCalmar = 2.12, 4 Sub-Perioden)_
+
+| Parameter        | Wert                    |
+|------------------|-------------------------|
+| Slow MA          | 130 **SMA**, Daily      |
+| Fast MA          | **60 SMA**, Daily       |
+| ATR Length       | 14 (RMA) – V2           |
+| Leverage Long    | **4.0x**                |
+| Leverage Short   | 1.0x                    |
+| Stop Loss        | **9.0%** (Max Risk)     |
+| Backtest Start   | 2021-04-14              |

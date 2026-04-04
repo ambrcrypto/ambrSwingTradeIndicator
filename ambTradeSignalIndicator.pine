@@ -5,7 +5,7 @@ indicator("AMB Dual MA Signal v1", overlay=true)
 // INPUTS: Slow MA (Trend Filter – First Entry Trigger)
 // ═══════════════════════════════════════════════════════════════════════
 slowMA_tf   = input.timeframe("D",   "Slow MA TF",   group="Slow MA")
-slowMA_type = input.string("EMA",    "Type",          options=["SMA","EMA"], group="Slow MA")
+slowMA_type = input.string("SMA",    "Type",          options=["SMA","EMA"], group="Slow MA")
 slowMA_len  = input.int(130,         "Length",        minval=1, group="Slow MA")
 slowMA_show = input.bool(true,       "Show on Chart", group="Slow MA")
 
@@ -15,7 +15,7 @@ slowMA_show = input.bool(true,       "Show on Chart", group="Slow MA")
 fastMA_tf   = input.timeframe("D",   "Fast MA TF",   group="Fast MA")
 useFastMA   = input.bool(true,       "Use Fast MA (false = Slow MA only)", group="Fast MA")
 fastMA_type = input.string("SMA",    "Type",          options=["SMA","EMA"], group="Fast MA")
-fastMA_len  = input.int(44,          "Length",        minval=1, group="Fast MA")
+fastMA_len  = input.int(60,          "Length",        minval=1, group="Fast MA")
 
 // ═══════════════════════════════════════════════════════════════════════
 // INPUTS: Signal Control
@@ -27,7 +27,7 @@ allowShorts = input.bool(true, "Allow Short Trades?", group="Signal Control")
 // INPUTS: Backtest
 // ═══════════════════════════════════════════════════════════════════════
 backtest_enable = input.bool(false,  "Enable Backtesting",           group="Backtest")
-leverageLong    = input.float(3.0,   "Leverage (Long)",  minval=0.1, step=0.1, group="Backtest")
+leverageLong    = input.float(4.0,   "Leverage (Long)",  minval=0.1, step=0.1, group="Backtest")
 leverageShort   = input.float(1.0,   "Leverage (Short)", minval=0.1, step=0.1, group="Backtest")
 bt_start_year   = input.int(2021,    "Start Year",                   group="Backtest")
 bt_start_month  = input.int(4,       "Start Month", minval=1, maxval=12, group="Backtest")
@@ -42,9 +42,17 @@ start_capital   = input.float(1000.0,"Start Capital", minval=1,      group="Back
 // INPUTS: Stop Loss
 // ═══════════════════════════════════════════════════════════════════════
 sl_enable    = input.bool(true,  "Enable Stop Loss",       group="Stop Loss")
-sl_risk_pct  = input.float(8.0,  "Max Risk % per Trade", minval=0.1, step=0.1, group="Stop Loss")
+sl_risk_pct  = input.float(9.0,  "Max Risk % per Trade", minval=0.1, step=0.1, group="Stop Loss")
 // Long SL  = EP × (1 - sl_risk_pct / (100 × leverageLong))
 // Short SL = EP × (1 + sl_risk_pct / (100 × leverageShort))
+
+// ═══════════════════════════════════════════════════════════════════════
+// INPUTS: Manual Entry Price
+// Wenn Use Manual EP = true: eigener EP ersetzt Kerzenschluss für
+// EP/SL-Anzeige im Chart und Backtest-Berechnung (eff. P/L, SL-Level).
+// ═══════════════════════════════════════════════════════════════════════
+use_manual_ep = input.bool(false, "Use Manual EP",                      group="Manual Entry")
+manual_ep_val = input.float(0.0,  "Entry Price", minval=0.0, step=0.01, group="Manual Entry")
 
 // ═══════════════════════════════════════════════════════════════════════
 // INPUTS: Debug / Test Mode
@@ -76,7 +84,8 @@ var int   lastSignalDirection = 0      // -1=short, 0=none, 1=long
 var bool  position_open       = false
 var bool  longAboveFastMA     = false  // true = price has closed above Fast MA during current long
 var bool  shortBelowFastMA    = false  // true = price has closed below Fast MA during current short
-var float entry_price         = na
+var float entry_price         = na     // eff_ep (manual oder close) – nur für visuelle EP/SL-Linie
+var float ep_for_sl_trigger   = na     // immer close des Signal-Bars – für SL-Trigger-Berechnung
 var line  current_entry_line  = na
 var label current_entry_label = na
 var line  sl_line_obj         = na
@@ -122,7 +131,7 @@ exitLong_A  = useFastMA and position_open and lastSignalDirection == 1 and longA
 exitLong_B  = position_open and lastSignalDirection == 1 and cross_below_slowMA
 
 // CL Exit SL: Stop Loss – intrabar low touches/breaks SL level (no flip)
-sl_long_level  = sl_enable and position_open and lastSignalDirection == 1  and not na(entry_price) ? entry_price * (1.0 - sl_risk_pct / (100.0 * leverageLong)) : float(na)
+sl_long_level  = sl_enable and position_open and lastSignalDirection == 1  and not na(ep_for_sl_trigger) ? ep_for_sl_trigger * (1.0 - sl_risk_pct / (100.0 * leverageLong)) : float(na)
 exitLong_SL    = not na(sl_long_level) and low <= sl_long_level
 
 exitLong    = exitLong_A or exitLong_B or exitLong_SL
@@ -141,7 +150,7 @@ exitShort_A  = useFastMA and position_open and lastSignalDirection == -1 and sho
 exitShort_B  = position_open and lastSignalDirection == -1 and cross_above_slowMA
 
 // CS Exit SL: Stop Loss – intrabar high touches/breaks SL level (no flip)
-sl_short_level = sl_enable and position_open and lastSignalDirection == -1 and not na(entry_price) ? entry_price * (1.0 + sl_risk_pct / (100.0 * leverageShort)) : float(na)
+sl_short_level = sl_enable and position_open and lastSignalDirection == -1 and not na(ep_for_sl_trigger) ? ep_for_sl_trigger * (1.0 + sl_risk_pct / (100.0 * leverageShort)) : float(na)
 exitShort_SL   = not na(sl_short_level) and high >= sl_short_level
 
 exitShort    = exitShort_A or exitShort_B or exitShort_SL
@@ -163,10 +172,11 @@ shortSignal  = ((shortEntry or shortReentry) and allowShorts) or flipToShort
 
 // ── 1. EXITS: Position schliessen ────────────────────────────────────
 if (exitLong or exitShort) and barstate.isconfirmed
-    position_open    := false
-    longAboveFastMA  := false
-    shortBelowFastMA := false
-    entry_price      := na
+    position_open       := false
+    longAboveFastMA     := false
+    shortBelowFastMA    := false
+    entry_price         := na
+    ep_for_sl_trigger   := na
     if not na(current_entry_line)
         line.delete(current_entry_line)
         current_entry_line := na
@@ -182,9 +192,11 @@ if (exitLong or exitShort) and barstate.isconfirmed
 
 // ── 2. ENTRIES: Position öffnen (inkl. Flip) ─────────────────────────
 if longSignal and barstate.isconfirmed
+    eff_ep              = use_manual_ep and manual_ep_val > 0 ? manual_ep_val : close
     lastSignalDirection := 1
     position_open       := true
-    entry_price         := close
+    entry_price         := eff_ep          // visuelle EP/SL-Linie
+    ep_for_sl_trigger   := close           // SL-Trigger immer auf Kerzenschluss-Basis
     longAboveFastMA     := close > fastMA_value
     if not na(current_entry_line)
         line.delete(current_entry_line)
@@ -196,15 +208,15 @@ if longSignal and barstate.isconfirmed
     if not na(sl_label_obj)
         label.delete(sl_label_obj)
         sl_label_obj := na
-    current_entry_line  := line.new(bar_index, close, bar_index + 1, close,
+    current_entry_line  := line.new(bar_index, eff_ep, bar_index + 1, eff_ep,
                                     extend=extend.right, color=color.new(#0096FF, 0),
                                     style=line.style_dotted, width=1)
-    current_entry_label := label.new(bar_index + 2, close,
-                                     text=str.tostring(close, "#.##"),
+    current_entry_label := label.new(bar_index + 2, eff_ep,
+                                     text=str.tostring(eff_ep, "#.##"),
                                      yloc=yloc.price, color=color.new(#0096FF, 0),
                                      style=label.style_label_left, textcolor=color.white)
     if sl_enable
-        sl_lv = close * (1.0 - sl_risk_pct / (100.0 * leverageLong))
+        sl_lv = eff_ep * (1.0 - sl_risk_pct / (100.0 * leverageLong))
         sl_line_obj  := line.new(bar_index, sl_lv, bar_index + 1, sl_lv,
                                  extend=extend.right, color=color.new(color.red, 0),
                                  style=line.style_dotted, width=1)
@@ -214,9 +226,11 @@ if longSignal and barstate.isconfirmed
                                   style=label.style_label_left, textcolor=color.white)
 
 else if shortSignal and barstate.isconfirmed
+    eff_ep              = use_manual_ep and manual_ep_val > 0 ? manual_ep_val : close
     lastSignalDirection := -1
     position_open       := true
-    entry_price         := close
+    entry_price         := eff_ep          // visuelle EP/SL-Linie
+    ep_for_sl_trigger   := close           // SL-Trigger immer auf Kerzenschluss-Basis
     shortBelowFastMA    := close < fastMA_value
     if not na(current_entry_line)
         line.delete(current_entry_line)
@@ -228,15 +242,15 @@ else if shortSignal and barstate.isconfirmed
     if not na(sl_label_obj)
         label.delete(sl_label_obj)
         sl_label_obj := na
-    current_entry_line  := line.new(bar_index, close, bar_index + 1, close,
+    current_entry_line  := line.new(bar_index, eff_ep, bar_index + 1, eff_ep,
                                     extend=extend.right, color=color.new(#0096FF, 0),
                                     style=line.style_dotted, width=1)
-    current_entry_label := label.new(bar_index + 2, close,
-                                     text=str.tostring(close, "#.##"),
+    current_entry_label := label.new(bar_index + 2, eff_ep,
+                                     text=str.tostring(eff_ep, "#.##"),
                                      yloc=yloc.price, color=color.new(#0096FF, 0),
                                      style=label.style_label_left, textcolor=color.white)
     if sl_enable
-        sl_lv = close * (1.0 + sl_risk_pct / (100.0 * leverageShort))
+        sl_lv = eff_ep * (1.0 + sl_risk_pct / (100.0 * leverageShort))
         sl_line_obj  := line.new(bar_index, sl_lv, bar_index + 1, sl_lv,
                                  extend=extend.right, color=color.new(color.red, 0),
                                  style=line.style_dotted, width=1)
@@ -330,12 +344,12 @@ if backtest_enable
 
         // ── 2. ENTRIES second (position is now free after any exit/flip) ──────────
         if longSignal and not bt_position_open
-            bt_entry_price   := close
+            bt_entry_price   := close   // Backtest immer mit Kerzenschluss (manual_ep nur für Chart-Anzeige)
             bt_position_type := 1
             bt_position_open := true
 
         if shortSignal and not bt_position_open
-            bt_entry_price   := close
+            bt_entry_price   := close   // Backtest immer mit Kerzenschluss (manual_ep nur für Chart-Anzeige)
             bt_position_type := -1
             bt_position_open := true
 
@@ -355,13 +369,23 @@ if backtest_enable
 // PERFORMANCE METRICS
 // ═══════════════════════════════════════════════════════════════════════
 
-// Unrealized P/L der offenen Position – wird eingerechnet wenn kein Enddatum gesetzt
+// Unrealized P/L der offenen Position – immer mit theoretischem bt_entry_price (Kerzenschluss)
+// Wird für end_capital / P/L-Statistik verwendet → ändert sich NIE durch Manual EP
 unrealized_pct = 0.0
 if backtest_enable and not bt_use_end_date and bt_position_open
     if bt_position_type == 1
         unrealized_pct := ((close - bt_entry_price) / bt_entry_price * 100.0) * leverageLong
     else if bt_position_type == -1
         unrealized_pct := ((bt_entry_price - close) / bt_entry_price * 100.0) * leverageShort
+
+// Anzeige-Unrealized: nutzt Manual EP wenn aktiv – NUR für "End:"-Feld und Live-Label
+// Zeigt die echte P/L des aktuellen Trades basierend auf dem realen Einstiegspreis
+display_unrealized = unrealized_pct
+if backtest_enable and not bt_use_end_date and bt_position_open and use_manual_ep and manual_ep_val > 0
+    if bt_position_type == 1
+        display_unrealized := ((close - manual_ep_val) / manual_ep_val * 100.0) * leverageLong
+    else if bt_position_type == -1
+        display_unrealized := ((manual_ep_val - close) / manual_ep_val * 100.0) * leverageShort
 
 end_capital = start_capital
 if array.size(trade_percs) > 0
@@ -428,8 +452,8 @@ if backtest_enable and not bt_use_end_date
         label.delete(live_trade_lbl)
         live_trade_lbl := na
     if bt_position_open
-        live_lbl_text  = (unrealized_pct >= 0 ? "+" : "") + str.tostring(unrealized_pct, "#.##") + "%"
-        live_lbl_color = unrealized_pct >= 0 ? color.green : color.red
+        live_lbl_text  = (display_unrealized >= 0 ? "+" : "") + str.tostring(display_unrealized, "#.##") + "%"
+        live_lbl_color = display_unrealized >= 0 ? color.green : color.red
         live_trade_lbl := label.new(bar_index, close,
                                     text=live_lbl_text,
                                     yloc=yloc.abovebar,
@@ -451,10 +475,10 @@ if backtest_enable
                       (bt_end_day   < 10 ? "0" : "") + str.tostring(bt_end_day)) :
                      (bt_position_open ?
                       (bt_position_type == 1 ? "LONG " : "SHORT ") +
-                      (unrealized_pct >= 0 ? "+" : "") + str.tostring(unrealized_pct, "#.##") + "%" :
+                      (display_unrealized >= 0 ? "+" : "") + str.tostring(display_unrealized, "#.##") + "%" :
                       "live")
     live_col = not bt_use_end_date and bt_position_open ?
-               (unrealized_pct >= 0 ? color.new(#00e676, 0) : color.new(#ff5252, 0)) :
+               (display_unrealized >= 0 ? color.new(#00e676, 0) : color.new(#ff5252, 0)) :
                color.white
 
     bg      = color.new(#1e2130, 0)
@@ -489,7 +513,7 @@ if backtest_enable
 // VISUALIZATION
 // ═══════════════════════════════════════════════════════════════════════
 plot(slowMA_show ? slowMA_value : na, title="Slow MA (130)", color=color.new(color.yellow, 0), linewidth=2)
-plot(useFastMA ? fastMA_value : na, title="Fast MA (44)", color=color.new(color.blue, 0), linewidth=2)
+plot(useFastMA ? fastMA_value : na, title="Fast MA (60)", color=color.new(color.blue, 0), linewidth=2)
 
 bgcolor(backtest_enable and in_window ? color.new(color.yellow, 90) : na)
 
