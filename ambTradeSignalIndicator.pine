@@ -42,7 +42,7 @@ start_capital   = input.float(1000.0,"Start Capital", minval=1,      group="Back
 // INPUTS: Stop Loss
 // ═══════════════════════════════════════════════════════════════════════
 sl_enable    = input.bool(true,  "Enable Stop Loss",       group="Stop Loss")
-sl_risk_pct  = input.float(9.0,  "Max Risk % per Trade", minval=0.1, step=0.1, group="Stop Loss")
+sl_risk_pct  = input.float(6.0,  "Max Risk % per Trade", minval=0.1, step=0.1, group="Stop Loss")
 // Long SL  = EP × (1 - sl_risk_pct / (100 × leverageLong))
 // Short SL = EP × (1 + sl_risk_pct / (100 × leverageShort))
 
