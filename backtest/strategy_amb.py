@@ -20,25 +20,31 @@ from dataclasses import dataclass, field
 @dataclass
 class AMBParams:
     slow_ma_len:    int   = 130
-    slow_ma_type:   str   = "SMA"   # "SMA" | "EMA"
+    slow_ma_type:   str   = "EMA"   # "SMA" | "EMA"
     fast_ma_len:    int   = 44
     fast_ma_type:   str   = "SMA"   # "SMA" | "EMA"
     allow_longs:    bool  = True
     allow_shorts:   bool  = True
+    use_fast_ma:    bool  = True    # False = Slow MA only (no re-entry, no fast-exit)
     leverage_long:  float = 3.0
-    leverage_short: float = 1.3
-    sl_enable:      bool  = False
-    sl_risk_pct:    float = 2.0     # max capital loss % per trade
+    leverage_short: float = 1.0
+    sl_enable:      bool  = True
+    sl_risk_pct:    float = 8.0     # max capital loss % per trade
     start_capital:  float = 1000.0
+    signal_tf:      str   = "D"    # "D"=daily, "W"=weekly, "M"=monthly
 
     def label(self) -> str:
-        sl_str = f"SL{self.sl_risk_pct:.0f}" if self.sl_enable else "noSL"
+        sl_str  = f"SL{self.sl_risk_pct:.0f}" if self.sl_enable else "noSL"
+        tf_str  = f"_{self.signal_tf}" if self.signal_tf != "D" else ""
+        fma_str = "" if self.use_fast_ma else "_noFMA"
         return (
             f"S{self.slow_ma_len}{self.slow_ma_type[0]}"
             f"_F{self.fast_ma_len}{self.fast_ma_type[0]}"
             f"_LL{self.leverage_long:.1f}"
             f"_LS{self.leverage_short:.2f}"
             f"_{sl_str}"
+            + tf_str
+            + fma_str
             + ("_noShorts" if not self.allow_shorts else "")
         )
 
@@ -50,10 +56,12 @@ class AMBParams:
             "fast_ma_type":   self.fast_ma_type,
             "allow_longs":    self.allow_longs,
             "allow_shorts":   self.allow_shorts,
+            "use_fast_ma":    self.use_fast_ma,
             "leverage_long":  self.leverage_long,
             "leverage_short": self.leverage_short,
             "sl_enable":      self.sl_enable,
             "sl_risk_pct":    self.sl_risk_pct,
+            "signal_tf":      self.signal_tf,
         }
 
 
@@ -87,6 +95,26 @@ def _calc_ma(series: pd.Series, length: int, ma_type: str) -> np.ndarray:
         raise ValueError(f"Unknown MA type: {ma_type!r}. Use 'SMA' or 'EMA'.")
 
 
+def _first_day_mask(dates: pd.DatetimeIndex, tf: str) -> np.ndarray:
+    """Boolean mask: True on first available trading day of each period.
+
+    tf="D"  → every day (all True)
+    tf="W"  → first trading day of each ISO calendar week
+    tf="M"  → first trading day of each calendar month
+    Stop-loss checks are NOT affected by this mask (always daily).
+    """
+    if tf == "D":
+        return np.ones(len(dates), dtype=bool)
+    mask = np.zeros(len(dates), dtype=bool)
+    seen: set = set()
+    for i, dt in enumerate(dates):
+        key = (dt.year, dt.isocalendar()[1]) if tf == "W" else (dt.year, dt.month)
+        if key not in seen:
+            seen.add(key)
+            mask[i] = True
+    return mask
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Main strategy runner
 # ─────────────────────────────────────────────────────────────────────────────
@@ -116,6 +144,7 @@ def run_strategy(df: pd.DataFrame, params: AMBParams,
 
     slow_ma = _calc_ma(close_s, params.slow_ma_len, params.slow_ma_type)
     fast_ma = _calc_ma(close_s, params.fast_ma_len, params.fast_ma_type)
+    signal_days = _first_day_mask(dates, params.signal_tf)
 
     # ── State ──────────────────────────────────────────────────────────────
     last_dir:            int   = 0      # 0=none, 1=long, -1=short
@@ -148,17 +177,25 @@ def run_strategy(df: pd.DataFrame, params: AMBParams,
         f  = fast_ma[i]; f0 = fast_ma[i - 1]
 
         # ── Fast MA state tracking (mirrors Pine Script block) ──────────────
-        if position_open:
+        if position_open and params.use_fast_ma:
             if last_dir == 1  and c > f:
                 long_above_fast_ma  = True
             if last_dir == -1 and c < f:
                 short_below_fast_ma = True
 
-        # ── Crossovers (global, computed every bar – CW10002 rule) ──────────
-        cross_above_slow = (c > s) and (c0 <= s0)
-        cross_above_fast = (c > f) and (c0 <= f0)
-        cross_below_slow = (c < s) and (c0 >= s0)
-        cross_below_fast = (c < f) and (c0 >= f0)
+        # ── Crossovers – only on signal days (signal_tf filter) ────────────
+        # SL checks always run daily; new entries/exits only on first day
+        # of the configured period (D=every day, W=weekly, M=monthly).
+        if signal_days[i]:
+            cross_above_slow = (c > s) and (c0 <= s0)
+            cross_above_fast = params.use_fast_ma and (c > f) and (c0 <= f0)
+            cross_below_slow = (c < s) and (c0 >= s0)
+            cross_below_fast = params.use_fast_ma and (c < f) and (c0 >= f0)
+        else:
+            cross_above_slow = False
+            cross_above_fast = False
+            cross_below_slow = False
+            cross_below_fast = False
 
         # ── SL levels ───────────────────────────────────────────────────────
         sl_long_level  = (

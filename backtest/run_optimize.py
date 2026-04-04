@@ -46,8 +46,9 @@ def main() -> None:
                         help=f"Ticker or 'all'. Known: {ALL_TICKERS}")
     parser.add_argument("--period",  default=None,
                         help="Period name or 'all' (default). E.g. 2021_default")
-    parser.add_argument("--mode",    default="quick", choices=["quick", "full"],
-                        help="Grid size: quick (~300 combos) or full (~3000)")
+    parser.add_argument("--mode",    default="quick",
+                        choices=["quick", "full", "equity_quick", "equity_full"],
+                        help="Grid size: quick/full (crypto) or equity_quick/equity_full (ETFs/stocks)")
     parser.add_argument("--sort",    default="calmar",
                         choices=["calmar", "pl_pct", "ann_return", "sharpe_trade"],
                         help="Primary ranking metric")
@@ -71,12 +72,14 @@ def main() -> None:
 
     # ── Grid size info ────────────────────────────────────────────────────
     g = GRIDS[args.mode]
-    n_slow = len(g["slow_ma_len"])
-    n_fast = len(g["fast_ma_len"])
-    n_sl   = len(g["sl_configs"])
-    n_lev  = len(g["leverage_long"]) * len(g["leverage_short"])
-    n_shrt = len(g["allow_shorts"])
-    approx = n_slow * n_fast * n_sl * n_lev * n_shrt
+    n_slow  = len(g["slow_ma_len"])
+    n_fast  = len(g["fast_ma_len"])
+    n_sl    = len(g["sl_configs"])
+    n_lev   = len(g["leverage_long"]) * len(g["leverage_short"])
+    n_shrt  = len(g["allow_shorts"])
+    n_fma   = len(g.get("use_fast_ma", [True]))
+    n_tf    = len(g.get("signal_tf",   ["D"]))
+    approx  = n_slow * n_fast * n_sl * n_lev * n_shrt * n_fma * n_tf
     console.print(
         f"\n[bold cyan]AMB Optimizer[/bold cyan]  "
         f"mode=[yellow]{args.mode}[/yellow]  "
@@ -133,6 +136,7 @@ def main() -> None:
                 slow_ma_type   = best_row["slow_ma_type"],
                 fast_ma_len    = int(best_row["fast_ma_len"]),
                 fast_ma_type   = best_row["fast_ma_type"],
+                use_fast_ma    = best_row.get("use_fast_ma", True) in (True, "True"),
                 allow_longs    = best_row["allow_longs"] in (True, "True"),
                 allow_shorts   = best_row["allow_shorts"] in (True, "True"),
                 leverage_long  = float(best_row["leverage_long"]),
@@ -155,6 +159,7 @@ def main() -> None:
                 slow_ma_type   = best_row["slow_ma_type"],
                 fast_ma_len    = int(best_row["fast_ma_len"]),
                 fast_ma_type   = best_row["fast_ma_type"],
+                use_fast_ma    = best_row.get("use_fast_ma", True) in (True, "True"),
                 allow_longs    = best_row["allow_longs"] in (True, "True"),
                 allow_shorts   = best_row["allow_shorts"] in (True, "True"),
                 leverage_long  = float(best_row["leverage_long"]),

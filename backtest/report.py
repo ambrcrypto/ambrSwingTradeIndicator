@@ -208,7 +208,7 @@ def print_cross_period(
         row_style = "bold red" if liq else ""
         t.add_row(
             pname,
-            f"{m['period_start']} → {m['period_end']}",
+            f"{m['period_start']} -> {m['period_end']}",
             str(m["trades"]),
             _fmt_pct(float(m["pl_pct"])),
             Text(f"-{float(m['max_dd']):.1f}%", style="red"),

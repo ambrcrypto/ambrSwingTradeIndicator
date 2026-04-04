@@ -16,6 +16,7 @@ from .strategy_amb import AMBParams, run_strategy
 from .engine import compute_metrics
 from .montecarlo import run_montecarlo
 from .report import console, print_trades, print_metrics, print_montecarlo
+from .ticker_config import get_ticker_params
 
 
 def main() -> None:
@@ -25,15 +26,20 @@ def main() -> None:
                         help="Period name or 'custom'")
     parser.add_argument("--start",    default=None, help="Custom start YYYY-MM-DD")
     parser.add_argument("--end",      default=None, help="Custom end   YYYY-MM-DD")
-    parser.add_argument("--slow",     type=int,   default=130,  help="Slow MA length")
-    parser.add_argument("--slow-type",default="SMA", choices=["SMA","EMA"])
-    parser.add_argument("--fast",     type=int,   default=44,   help="Fast MA length")
-    parser.add_argument("--fast-type",default="SMA", choices=["SMA","EMA"])
-    parser.add_argument("--llong",    type=float, default=3.0,  help="Leverage Long")
-    parser.add_argument("--lshort",    type=float, default=1.3,  help="Leverage Short")
+    # Params – default=None means "use ticker config default"
+    parser.add_argument("--slow",     type=int,   default=None, help="Slow MA length")
+    parser.add_argument("--slow-type",default=None, choices=["SMA","EMA"])
+    parser.add_argument("--fast",     type=int,   default=None, help="Fast MA length")
+    parser.add_argument("--fast-type",default=None, choices=["SMA","EMA"])
+    parser.add_argument("--llong",    type=float, default=None, help="Leverage Long")
+    parser.add_argument("--lshort",   type=float, default=None, help="Leverage Short")
     parser.add_argument("--sl",       type=float, default=None,
-                        help="SL risk % (omit = SL off)")
+                        help="SL risk %% (0 = SL off, omit = use ticker config)")
+    parser.add_argument("--signal-tf",default=None, choices=["D","W","M"],
+                        help="Signal timeframe: D=daily W=weekly M=monthly")
     parser.add_argument("--no-shorts",action="store_true", help="Disable short trades")
+    parser.add_argument("--no-fast-ma",action="store_true",
+                        help="Disable Fast MA: Slow MA only (no re-entry, no fast-exit)")
     parser.add_argument("--capital",  type=float, default=1000.0)
     parser.add_argument("--mc",       type=int,   default=1000,
                         help="Monte Carlo simulations (0 = skip)")
@@ -53,19 +59,34 @@ def main() -> None:
             return
         start, end = periods[args.period]
 
-    # ── Build params ──────────────────────────────────────────────────────
+    # ── Build params: ticker config as base, CLI overrides on top ────────
+    base = get_ticker_params(args.ticker)
+
+    # SL: explicit --sl 0 turns off, --sl N sets risk%, omit = use config
+    if args.sl is None:
+        sl_enable  = base.sl_enable
+        sl_risk    = base.sl_risk_pct
+    elif args.sl == 0:
+        sl_enable  = False
+        sl_risk    = base.sl_risk_pct
+    else:
+        sl_enable  = True
+        sl_risk    = args.sl
+
     params = AMBParams(
-        slow_ma_len    = args.slow,
-        slow_ma_type   = args.slow_type,
-        fast_ma_len    = args.fast,
-        fast_ma_type   = args.fast_type,
+        slow_ma_len    = args.slow      if args.slow      is not None else base.slow_ma_len,
+        slow_ma_type   = args.slow_type if args.slow_type is not None else base.slow_ma_type,
+        fast_ma_len    = args.fast      if args.fast      is not None else base.fast_ma_len,
+        fast_ma_type   = args.fast_type if args.fast_type is not None else base.fast_ma_type,
+        use_fast_ma    = False if args.no_fast_ma else base.use_fast_ma,
         allow_longs    = True,
         allow_shorts   = not args.no_shorts,
-        leverage_long  = args.llong,
-        leverage_short = args.lshort,
-        sl_enable      = args.sl is not None and args.sl > 0,
-        sl_risk_pct    = args.sl if (args.sl is not None and args.sl > 0) else 2.0,
+        leverage_long  = args.llong     if args.llong     is not None else base.leverage_long,
+        leverage_short = args.lshort    if args.lshort    is not None else base.leverage_short,
+        sl_enable      = sl_enable,
+        sl_risk_pct    = sl_risk,
         start_capital  = args.capital,
+        signal_tf      = args.signal_tf if args.signal_tf is not None else base.signal_tf,
     )
 
     # ── Load data (full history for MA warmup; trades filtered by start) ──
@@ -75,7 +96,7 @@ def main() -> None:
         f"\n[bold]AMB Backtest[/bold]  "
         f"[cyan]{args.ticker}[/cyan]  "
         f"[yellow]{args.period}[/yellow]  "
-        f"{start} → {end}  ({n_window} bars)"
+        f"{start} -> {end}  ({n_window} bars)"
     )
     console.print(f"  Params: [dim]{params.label()}[/dim]")
 

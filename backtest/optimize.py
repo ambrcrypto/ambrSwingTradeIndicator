@@ -57,12 +57,31 @@ _SL_FULL = [
     (True,  15.0),
 ]
 
+_SL_EQUITY_QUICK = [
+    (False, 2.0),
+    (True,  4.0),
+    (True,  8.0),
+    (True,  12.0),
+    (True,  15.0),
+]
+
+_SL_EQUITY_FULL = [
+    (False, 2.0),
+    (True,  4.0),
+    (True,  6.0),
+    (True,  8.0),
+    (True,  12.0),
+    (True,  15.0),
+]
+
 GRIDS: dict[str, dict] = {
     "quick": {
         "slow_ma_len":    [100, 130, 160],
         "slow_ma_type":   ["SMA"],
         "fast_ma_len":    [30, 44, 60],
         "fast_ma_type":   ["SMA"],
+        "use_fast_ma":    [True],
+        "signal_tf":      ["D"],
         "allow_longs":    [True],
         "allow_shorts":   [True, False],
         "leverage_long":  [2.0, 3.0, 4.0],
@@ -74,11 +93,40 @@ GRIDS: dict[str, dict] = {
         "slow_ma_type":   ["SMA", "EMA"],
         "fast_ma_len":    [20, 30, 44, 50, 60],
         "fast_ma_type":   ["SMA", "EMA"],
+        "use_fast_ma":    [True],
+        "signal_tf":      ["D"],
         "allow_longs":    [True],
         "allow_shorts":   [True, False],
         "leverage_long":  [1.0, 2.0, 3.0, 4.0, 5.0],
         "leverage_short": [1.0, 1.25, 1.5, 2.0],
         "sl_configs":     _SL_FULL,
+    },
+    # ── Equity / ETF grids: adds use_fast_ma + signal_tf dimensions ────────
+    "equity_quick": {
+        "slow_ma_len":    [100, 130, 160, 200],
+        "slow_ma_type":   ["SMA", "EMA"],
+        "fast_ma_len":    [20, 44, 60],
+        "fast_ma_type":   ["SMA"],
+        "use_fast_ma":    [True, False],   # Dual MA vs. Slow MA only
+        "signal_tf":      ["D", "W"],      # Daily vs. weekly signals
+        "allow_longs":    [True],
+        "allow_shorts":   [True, False],
+        "leverage_long":  [2.0, 3.0, 4.0],
+        "leverage_short": [1.0],
+        "sl_configs":     _SL_EQUITY_QUICK,
+    },
+    "equity_full": {
+        "slow_ma_len":    [80, 100, 130, 160, 200],
+        "slow_ma_type":   ["SMA", "EMA"],
+        "fast_ma_len":    [20, 44, 60],
+        "fast_ma_type":   ["SMA"],
+        "use_fast_ma":    [True, False],   # Dual MA vs. Slow MA only
+        "signal_tf":      ["D", "W"],      # Daily vs. weekly signals
+        "allow_longs":    [True],
+        "allow_shorts":   [True, False],
+        "leverage_long":  [2.0, 3.0, 4.0],
+        "leverage_short": [1.0, 1.25],
+        "sl_configs":     _SL_EQUITY_FULL,
     },
 }
 
@@ -87,34 +135,50 @@ def _grid_params(mode: str = "quick") -> list[AMBParams]:
     """Generate all AMBParams combinations for the given grid mode."""
     g = GRIDS[mode]
     combos = []
-    for (
-        slow_len, slow_type,
-        fast_len, fast_type,
-        allow_l, allow_s,
-        lev_l, lev_s,
-        (sl_en, sl_risk),
-    ) in itertools.product(
-        g["slow_ma_len"], g["slow_ma_type"],
-        g["fast_ma_len"], g["fast_ma_type"],
-        g["allow_longs"], g["allow_shorts"],
-        g["leverage_long"], g["leverage_short"],
-        g["sl_configs"],
-    ):
-        # Skip if fast MA >= slow MA (meaningless)
-        if fast_len >= slow_len:
-            continue
-        combos.append(AMBParams(
-            slow_ma_len    = slow_len,
-            slow_ma_type   = slow_type,
-            fast_ma_len    = fast_len,
-            fast_ma_type   = fast_type,
-            allow_longs    = allow_l,
-            allow_shorts   = allow_s,
-            leverage_long  = lev_l,
-            leverage_short = lev_s,
-            sl_enable      = sl_en,
-            sl_risk_pct    = sl_risk,
-        ))
+
+    use_fast_ma_values = g.get("use_fast_ma", [True])
+    signal_tf_values   = g.get("signal_tf",   ["D"])
+
+    for use_fma in use_fast_ma_values:
+        # When Fast MA is disabled, fast_len/fast_type don't affect the strategy.
+        # Use a single canonical placeholder to avoid redundant runs.
+        if use_fma:
+            fast_combos = list(itertools.product(g["fast_ma_len"], g["fast_ma_type"]))
+        else:
+            fast_combos = [(44, "SMA")]  # placeholder, ignored by run_strategy
+
+        for (
+            slow_len, slow_type,
+            allow_l, allow_s,
+            lev_l, lev_s,
+            (sl_en, sl_risk),
+            signal_tf,
+            (fast_len, fast_type),
+        ) in itertools.product(
+            g["slow_ma_len"], g["slow_ma_type"],
+            g["allow_longs"], g["allow_shorts"],
+            g["leverage_long"], g["leverage_short"],
+            g["sl_configs"],
+            signal_tf_values,
+            fast_combos,
+        ):
+            # Skip meaningless combos: fast MA must be shorter than slow MA
+            if use_fma and fast_len >= slow_len:
+                continue
+            combos.append(AMBParams(
+                slow_ma_len    = slow_len,
+                slow_ma_type   = slow_type,
+                fast_ma_len    = fast_len,
+                fast_ma_type   = fast_type,
+                use_fast_ma    = use_fma,
+                allow_longs    = allow_l,
+                allow_shorts   = allow_s,
+                leverage_long  = lev_l,
+                leverage_short = lev_s,
+                sl_enable      = sl_en,
+                sl_risk_pct    = sl_risk,
+                signal_tf      = signal_tf,
+            ))
     return combos
 
 
