@@ -31,13 +31,25 @@ TICKER_MAP: dict[str, str] = {
 # Predefined test periods (start, end).  None = today.
 # Each entry: (label, start_date, end_date)
 PERIODS: dict[str, tuple[str | None, str | None]] = {
-    "2021_default":       ("2021-04-14", None),          # Pine Script default → present
-    "full":               ("2010-01-01", None),          # max available
-    "bull_2020_2021":     ("2020-10-01", "2021-11-30"),  # crypto bull
-    "bear_2022":          ("2022-01-01", "2022-12-31"),  # crypto bear
-    "recovery_2023_2025": ("2023-01-01", "2025-12-31"),  # recovery + new ATH
-    "last_2y":            (None,         None),          # dynamic, filled in get_periods()
+    # ── Reference periods (not used in robustness – cumulative/overlapping) ────
+    "2021_default":           ("2021-04-14", None),   # Pine Script default → present
+    "full":                   ("2010-01-01", None),   # max available
+    "last_2y":                (None,         None),   # dynamic, filled in get_periods()
+    # ── BTC market regime periods: 3 full cycles (2017–present) ────────────────
+    # Non-overlapping phase slices for regime-diverse robustness testing.
+    # P1–P6 are fixed anchors; P7 rolls forward every 6 months.
+    "btc_p1_bull_2017":       ("2017-01-01", "2017-12-31"),  # Zyklus 2 Bull:  $900 → $20k
+    "btc_p2_bear_2018":       ("2018-01-01", "2018-12-31"),  # Zyklus 2 Bear:  −84%
+    "btc_p3_sideways_2019":   ("2019-01-01", "2020-02-29"),  # Seitwärts / Recovery
+    "btc_p4_bull_2020_2021":  ("2020-03-01", "2021-11-30"),  # Zyklus 3 Bull:  COVID + ATH $69k
+    "btc_p5_bear_2022":       ("2021-12-01", "2022-12-31"),  # Zyklus 3 Bear:  −78%, FTX
+    "btc_p6_bull_2023_2024":  ("2023-01-01", "2024-12-31"),  # Zyklus 4 Bull:  ETF + Halving
+    "btc_p7_current_2025":    ("2025-01-01", None),          # Laufend (Out-of-sample)
 }
+
+# Periods excluded from robustness scoring (cumulative or overlapping with regime periods).
+# run_robustness() uses all periods EXCEPT these.
+ROBUSTNESS_EXCLUDE: frozenset[str] = frozenset({"2021_default", "full", "last_2y"})
 
 
 def _yf_ticker(ticker: str) -> str:

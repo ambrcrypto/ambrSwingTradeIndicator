@@ -26,7 +26,7 @@ import pandas as pd
 
 from .strategy_amb import AMBParams
 from .engine import backtest
-from .data import get_slice, get_periods
+from .data import get_slice, get_periods, ROBUSTNESS_EXCLUDE
 
 BASE_DIR    = Path(__file__).parent
 RESULTS_DIR = BASE_DIR / "results"
@@ -57,6 +57,25 @@ _SL_FULL = [
     (True,  15.0),
 ]
 
+# BTC-specific SL configs: sl always enabled (no noSL baseline)
+_SL_BTC_QUICK = [
+    (True,  4.0),
+    (True,  6.0),
+    (True,  8.0),   # added: user confirmed 8% > 9%
+    (True,  9.0),
+    (True,  12.0),
+]
+
+_SL_BTC_FULL = [
+    (True,  3.0),
+    (True,  4.0),
+    (True,  6.0),
+    (True,  8.0),
+    (True,  9.0),
+    (True,  12.0),
+    (True,  15.0),
+]
+
 _SL_EQUITY_QUICK = [
     (False, 2.0),
     (True,  4.0),
@@ -72,6 +91,50 @@ _SL_EQUITY_FULL = [
     (True,  8.0),
     (True,  12.0),
     (True,  15.0),
+]
+
+# ── ATR-based SL configurations: (atr_sl_enable, atr_sl_len, atr_sl_mult) ─────────────────
+_ATR_SL_QUICK = [
+    (False, 14, 2.5),   # baseline: no SL (control group)
+    (True,  7,  2.0),
+    (True,  7,  2.5),
+    (True,  10, 2.0),
+    (True,  10, 2.5),
+    (True,  14, 1.5),
+    (True,  14, 2.0),
+    (True,  14, 2.5),
+    (True,  14, 3.0),
+    (True,  20, 2.0),
+    (True,  20, 2.5),
+    (True,  20, 3.0),
+    (True,  28, 2.5),
+    (True,  28, 3.5),
+]
+
+_ATR_SL_FULL = [
+    (False, 14, 2.5),
+    (True,  5,  1.5),
+    (True,  5,  2.0),
+    (True,  7,  1.5),
+    (True,  7,  2.0),
+    (True,  7,  2.5),
+    (True,  10, 1.5),
+    (True,  10, 2.0),
+    (True,  10, 2.5),
+    (True,  10, 3.0),
+    (True,  14, 1.5),
+    (True,  14, 2.0),
+    (True,  14, 2.5),
+    (True,  14, 3.0),
+    (True,  14, 3.5),
+    (True,  20, 2.0),
+    (True,  20, 2.5),
+    (True,  20, 3.0),
+    (True,  20, 3.5),
+    (True,  28, 2.0),
+    (True,  28, 2.5),
+    (True,  28, 3.0),
+    (True,  28, 3.5),
 ]
 
 GRIDS: dict[str, dict] = {
@@ -128,6 +191,60 @@ GRIDS: dict[str, dict] = {
         "leverage_short": [1.0, 1.25],
         "sl_configs":     _SL_EQUITY_FULL,
     },
+    # ── BTC-specific grids: allow_shorts=True, sl=True, use_fast_ma=True fixed ─────
+    "btc_quick": {
+        "slow_ma_len":    [100, 130, 160],
+        "slow_ma_type":   ["SMA"],
+        "fast_ma_len":    [30, 44, 60],
+        "fast_ma_type":   ["SMA"],
+        "use_fast_ma":    [True],
+        "signal_tf":      ["D"],
+        "allow_longs":    [True],
+        "allow_shorts":   [True],          # always True for BTC
+        "leverage_long":  [2.0, 3.0, 4.0],
+        "leverage_short": [0.5, 1.0, 1.25, 2.0],
+        "sl_configs":     _SL_BTC_QUICK,   # sl always enabled
+    },
+    "btc_full": {
+        "slow_ma_len":    [80, 100, 120, 130, 150, 180],
+        "slow_ma_type":   ["SMA", "EMA"],
+        "fast_ma_len":    [20, 30, 44, 50, 60],
+        "fast_ma_type":   ["SMA", "EMA"],
+        "use_fast_ma":    [True],
+        "signal_tf":      ["D"],
+        "allow_longs":    [True],
+        "allow_shorts":   [True],          # always True for BTC
+        "leverage_long":  [1.0, 2.0, 3.0, 4.0, 5.0],
+        "leverage_short": [1.0, 1.25, 1.5, 2.0],
+        "sl_configs":     _SL_BTC_FULL,    # sl always enabled
+    },
+    # ── ATR-SL grids: same MA/leverage space as quick/full, ATR-based stop loss ──────
+    "atr_quick": {
+        "slow_ma_len":    [100, 130, 160],
+        "slow_ma_type":   ["SMA"],
+        "fast_ma_len":    [30, 44, 60],
+        "fast_ma_type":   ["SMA"],
+        "use_fast_ma":    [True],
+        "signal_tf":      ["D"],
+        "allow_longs":    [True],
+        "allow_shorts":   [True, False],
+        "leverage_long":  [2.0, 3.0, 4.0],
+        "leverage_short": [1.0, 1.25, 2.0],
+        "atr_sl_configs": _ATR_SL_QUICK,
+    },
+    "atr_full": {
+        "slow_ma_len":    [80, 100, 120, 130, 150, 180],
+        "slow_ma_type":   ["SMA", "EMA"],
+        "fast_ma_len":    [20, 30, 44, 50, 60],
+        "fast_ma_type":   ["SMA", "EMA"],
+        "use_fast_ma":    [True],
+        "signal_tf":      ["D"],
+        "allow_longs":    [True],
+        "allow_shorts":   [True, False],
+        "leverage_long":  [1.0, 2.0, 3.0, 4.0, 5.0],
+        "leverage_short": [1.0, 1.25, 1.5, 2.0],
+        "atr_sl_configs": _ATR_SL_FULL,
+    },
 }
 
 
@@ -138,6 +255,8 @@ def _grid_params(mode: str = "quick") -> list[AMBParams]:
 
     use_fast_ma_values = g.get("use_fast_ma", [True])
     signal_tf_values   = g.get("signal_tf",   ["D"])
+    is_atr_mode        = "atr_sl_configs" in g
+    sl_iter            = g["atr_sl_configs"] if is_atr_mode else g["sl_configs"]
 
     for use_fma in use_fast_ma_values:
         # When Fast MA is disabled, fast_len/fast_type don't affect the strategy.
@@ -151,34 +270,56 @@ def _grid_params(mode: str = "quick") -> list[AMBParams]:
             slow_len, slow_type,
             allow_l, allow_s,
             lev_l, lev_s,
-            (sl_en, sl_risk),
+            sl_config,
             signal_tf,
             (fast_len, fast_type),
         ) in itertools.product(
             g["slow_ma_len"], g["slow_ma_type"],
             g["allow_longs"], g["allow_shorts"],
             g["leverage_long"], g["leverage_short"],
-            g["sl_configs"],
+            sl_iter,
             signal_tf_values,
             fast_combos,
         ):
             # Skip meaningless combos: fast MA must be shorter than slow MA
             if use_fma and fast_len >= slow_len:
                 continue
-            combos.append(AMBParams(
-                slow_ma_len    = slow_len,
-                slow_ma_type   = slow_type,
-                fast_ma_len    = fast_len,
-                fast_ma_type   = fast_type,
-                use_fast_ma    = use_fma,
-                allow_longs    = allow_l,
-                allow_shorts   = allow_s,
-                leverage_long  = lev_l,
-                leverage_short = lev_s,
-                sl_enable      = sl_en,
-                sl_risk_pct    = sl_risk,
-                signal_tf      = signal_tf,
-            ))
+
+            if is_atr_mode:
+                atr_en, atr_len, atr_mult = sl_config
+                combos.append(AMBParams(
+                    slow_ma_len    = slow_len,
+                    slow_ma_type   = slow_type,
+                    fast_ma_len    = fast_len,
+                    fast_ma_type   = fast_type,
+                    use_fast_ma    = use_fma,
+                    allow_longs    = allow_l,
+                    allow_shorts   = allow_s,
+                    leverage_long  = lev_l,
+                    leverage_short = lev_s,
+                    sl_enable      = False,  # % SL disabled in ATR mode
+                    sl_risk_pct    = 9.0,    # placeholder, not used
+                    atr_sl_enable  = atr_en,
+                    atr_sl_len     = atr_len,
+                    atr_sl_mult    = atr_mult,
+                    signal_tf      = signal_tf,
+                ))
+            else:
+                sl_en, sl_risk = sl_config
+                combos.append(AMBParams(
+                    slow_ma_len    = slow_len,
+                    slow_ma_type   = slow_type,
+                    fast_ma_len    = fast_len,
+                    fast_ma_type   = fast_type,
+                    use_fast_ma    = use_fma,
+                    allow_longs    = allow_l,
+                    allow_shorts   = allow_s,
+                    leverage_long  = lev_l,
+                    leverage_short = lev_s,
+                    sl_enable      = sl_en,
+                    sl_risk_pct    = sl_risk,
+                    signal_tf      = signal_tf,
+                ))
     return combos
 
 
@@ -299,9 +440,9 @@ def run_robustness(
     Each row: params + min_calmar / mean_calmar / n_positive + per-period calmar/ann/maxdd.
     """
     avail = get_periods(ticker)
-    # Default: exclude 'full' (overlaps with all regime periods)
+    # Default: exclude cumulative/overlapping periods (see ROBUSTNESS_EXCLUDE in data.py)
     if periods is None:
-        periods = [p for p in avail.keys() if p != "full"]
+        periods = [p for p in avail.keys() if p not in ROBUSTNESS_EXCLUDE]
 
     # Load data for all periods upfront (avoid repeated I/O per combo)
     period_data: dict[str, tuple] = {}

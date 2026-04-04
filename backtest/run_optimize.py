@@ -23,7 +23,7 @@ import json
 from pathlib import Path
 from rich.console import Console
 
-from .data import get_periods, TICKER_MAP
+from .data import get_periods, TICKER_MAP, ROBUSTNESS_EXCLUDE
 from .strategy_amb import AMBParams
 from .strategy_amb import run_strategy
 from .engine import compute_metrics
@@ -48,8 +48,8 @@ def main() -> None:
     parser.add_argument("--period",  default=None,
                         help="Period name or 'all' (default). E.g. 2021_default")
     parser.add_argument("--mode",    default="quick",
-                        choices=["quick", "full", "equity_quick", "equity_full"],
-                        help="Grid size: quick/full (crypto) or equity_quick/equity_full (ETFs/stocks)")
+                        choices=["quick", "full", "btc_quick", "btc_full", "equity_quick", "equity_full", "atr_quick", "atr_full"],
+                        help="Grid size: quick/full (crypto generic), btc_quick/btc_full (BTC: shorts+SL always on), equity_quick/equity_full (ETFs/stocks), atr_quick/atr_full (ATR SL)")
     parser.add_argument("--sort",    default="calmar",
                         choices=["calmar", "pl_pct", "ann_return", "sharpe_trade"],
                         help="Primary ranking metric")
@@ -80,7 +80,7 @@ def main() -> None:
     g = GRIDS[args.mode]
     n_slow  = len(g["slow_ma_len"])
     n_fast  = len(g["fast_ma_len"])
-    n_sl    = len(g["sl_configs"])
+    n_sl    = len(g.get("atr_sl_configs", g.get("sl_configs", [])))
     n_lev   = len(g["leverage_long"]) * len(g["leverage_short"])
     n_shrt  = len(g["allow_shorts"])
     n_fma   = len(g.get("use_fast_ma", [True]))
@@ -102,7 +102,7 @@ def main() -> None:
                 min_trades = args.min_trades,
                 sort_by    = args.robustness_sort,
             )
-            rb_periods = [p for p in get_periods(ticker).keys() if p != "full"]
+            rb_periods = [p for p in get_periods(ticker).keys() if p not in ROBUSTNESS_EXCLUDE]
             print_robustness_results(rob_results, ticker, rb_periods, top_n=args.top)
 
             # Optionally show cross-period breakdown for top result
@@ -120,6 +120,9 @@ def main() -> None:
                     leverage_short = float(br["leverage_short"]),
                     sl_enable      = br["sl_enable"] in (True, "True"),
                     sl_risk_pct    = float(br["sl_risk_pct"]),
+                    atr_sl_enable  = br.get("atr_sl_enable", False) in (True, "True"),
+                    atr_sl_len     = int(br.get("atr_sl_len", 14)),
+                    atr_sl_mult    = float(br.get("atr_sl_mult", 2.5)),
                 )
                 console.print(
                     f"\n[bold]Cross-Period Breakdown[/bold]  "
@@ -190,6 +193,9 @@ def main() -> None:
                 leverage_short = float(best_row["leverage_short"]),
                 sl_enable      = best_row["sl_enable"] in (True, "True"),
                 sl_risk_pct    = float(best_row["sl_risk_pct"]),
+                atr_sl_enable  = best_row.get("atr_sl_enable", False) in (True, "True"),
+                atr_sl_len     = int(best_row.get("atr_sl_len", 14)),
+                atr_sl_mult    = float(best_row.get("atr_sl_mult", 2.5)),
             )
             console.print(
                 f"\n[bold]Cross-Period Check[/bold]  "
@@ -213,6 +219,9 @@ def main() -> None:
                 leverage_short = float(best_row["leverage_short"]),
                 sl_enable      = best_row["sl_enable"] in (True, "True"),
                 sl_risk_pct    = float(best_row["sl_risk_pct"]),
+                atr_sl_enable  = best_row.get("atr_sl_enable", False) in (True, "True"),
+                atr_sl_len     = int(best_row.get("atr_sl_len", 14)),
+                atr_sl_mult    = float(best_row.get("atr_sl_mult", 2.5)),
             )
             from .data import get_slice
             import pandas as pd

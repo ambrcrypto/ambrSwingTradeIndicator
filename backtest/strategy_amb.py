@@ -29,12 +29,21 @@ class AMBParams:
     leverage_long:  float = 3.0
     leverage_short: float = 1.0
     sl_enable:      bool  = True
-    sl_risk_pct:    float = 8.0     # max capital loss % per trade
+    sl_risk_pct:    float = 8.0     # max capital loss % per trade (% SL mode)
+    # ATR-based SL (overrides sl_enable when True)
+    atr_sl_enable:  bool  = False
+    atr_sl_len:     int   = 14      # ATR period (Wilder's RMA, same as Pine ta.atr)
+    atr_sl_mult:    float = 2.5     # SL distance = ATR_at_entry × atr_mult
     start_capital:  float = 1000.0
     signal_tf:      str   = "D"    # "D"=daily, "W"=weekly, "M"=monthly
 
     def label(self) -> str:
-        sl_str  = f"SL{self.sl_risk_pct:.0f}" if self.sl_enable else "noSL"
+        if self.atr_sl_enable:
+            sl_str = f"ATR{self.atr_sl_len}x{self.atr_sl_mult:.1f}"
+        elif self.sl_enable:
+            sl_str = f"SL{self.sl_risk_pct:.0f}"
+        else:
+            sl_str = "noSL"
         tf_str  = f"_{self.signal_tf}" if self.signal_tf != "D" else ""
         fma_str = "" if self.use_fast_ma else "_noFMA"
         return (
@@ -61,6 +70,9 @@ class AMBParams:
             "leverage_short": self.leverage_short,
             "sl_enable":      self.sl_enable,
             "sl_risk_pct":    self.sl_risk_pct,
+            "atr_sl_enable":  self.atr_sl_enable,
+            "atr_sl_len":     self.atr_sl_len,
+            "atr_sl_mult":    self.atr_sl_mult,
             "signal_tf":      self.signal_tf,
         }
 
@@ -93,6 +105,33 @@ def _calc_ma(series: pd.Series, length: int, ma_type: str) -> np.ndarray:
         return series.ewm(span=length, adjust=False, min_periods=length).mean().to_numpy()
     else:
         raise ValueError(f"Unknown MA type: {ma_type!r}. Use 'SMA' or 'EMA'.")
+
+
+def _calc_atr(high: np.ndarray, low: np.ndarray, close: np.ndarray, length: int) -> np.ndarray:
+    """
+    Wilder's ATR – identical to Pine Script ta.atr() / ta.rma().
+    Seed: simple mean of first `length` True Range values.
+    Then: atr[i] = atr[i-1] * (length-1)/length + tr[i] / length
+    """
+    n = len(close)
+    # Vectorised True Range
+    tr = np.empty(n)
+    tr[0] = np.nan
+    tr[1:] = np.maximum(
+        high[1:] - low[1:],
+        np.maximum(np.abs(high[1:] - close[:-1]), np.abs(low[1:] - close[:-1]))
+    )
+    atr = np.full(n, np.nan)
+    if n <= length:
+        return atr
+    # Seed: simple mean of first `length` TRs
+    atr[length] = float(np.mean(tr[1:length + 1]))
+    # Wilder's smoothing
+    inv_len    = 1.0 / length
+    comp_coeff = (length - 1) * inv_len
+    for j in range(length + 1, n):
+        atr[j] = comp_coeff * atr[j - 1] + inv_len * tr[j]
+    return atr
 
 
 def _first_day_mask(dates: pd.DatetimeIndex, tf: str) -> np.ndarray:
@@ -144,6 +183,7 @@ def run_strategy(df: pd.DataFrame, params: AMBParams,
 
     slow_ma = _calc_ma(close_s, params.slow_ma_len, params.slow_ma_type)
     fast_ma = _calc_ma(close_s, params.fast_ma_len, params.fast_ma_type)
+    atr     = _calc_atr(high, low_, close, params.atr_sl_len) if params.atr_sl_enable else np.full(n, np.nan)
     signal_days = _first_day_mask(dates, params.signal_tf)
 
     # ── State ──────────────────────────────────────────────────────────────
@@ -152,6 +192,7 @@ def run_strategy(df: pd.DataFrame, params: AMBParams,
     long_above_fast_ma:  bool  = False
     short_below_fast_ma: bool  = False
     entry_price:         float = 0.0
+    entry_atr:           float = 0.0    # ATR value frozen at entry (ATR SL mode only)
     entry_bar:           int   = 0
     entry_date:          pd.Timestamp = dates[0]
 
@@ -162,12 +203,6 @@ def run_strategy(df: pd.DataFrame, params: AMBParams,
         if np.isnan(slow_ma[i]) or np.isnan(fast_ma[i]):
             continue
         if np.isnan(slow_ma[i - 1]) or np.isnan(fast_ma[i - 1]):
-            continue
-
-        # Skip pre-window bars – state machine starts FRESH at trade_start,
-        # mirroring TradingView's bt_position_open=False reset at window open.
-        # MAs are valid here because full history was passed in (warmup).
-        if trade_start is not None and dates[i] < trade_start:
             continue
 
         c  = close[i];  c0 = close[i - 1]
@@ -198,16 +233,23 @@ def run_strategy(df: pd.DataFrame, params: AMBParams,
             cross_below_fast = False
 
         # ── SL levels ───────────────────────────────────────────────────────
-        sl_long_level  = (
-            entry_price * (1.0 - params.sl_risk_pct / (100.0 * params.leverage_long))
-            if params.sl_enable and position_open and last_dir == 1 and entry_price > 0
-            else None
-        )
-        sl_short_level = (
-            entry_price * (1.0 + params.sl_risk_pct / (100.0 * params.leverage_short))
-            if params.sl_enable and position_open and last_dir == -1 and entry_price > 0
-            else None
-        )
+        if params.atr_sl_enable and position_open and entry_price > 0 and entry_atr > 0:
+            # ATR SL: level fixed at entry ATR × mult, never moves during trade
+            sl_long_level  = (entry_price - entry_atr * params.atr_sl_mult) if last_dir == 1  else None
+            sl_short_level = (entry_price + entry_atr * params.atr_sl_mult) if last_dir == -1 else None
+        elif params.sl_enable and position_open and entry_price > 0:
+            # % SL: fixed percentage capital risk
+            sl_long_level  = (
+                entry_price * (1.0 - params.sl_risk_pct / (100.0 * params.leverage_long))
+                if last_dir == 1 else None
+            )
+            sl_short_level = (
+                entry_price * (1.0 + params.sl_risk_pct / (100.0 * params.leverage_short))
+                if last_dir == -1 else None
+            )
+        else:
+            sl_long_level  = None
+            sl_short_level = None
 
         # ── Exit conditions ─────────────────────────────────────────────────
         exit_long_A  = position_open and last_dir == 1  and long_above_fast_ma  and cross_below_fast
@@ -238,38 +280,46 @@ def run_strategy(df: pd.DataFrame, params: AMBParams,
         # ── State machine: EXIT first, then ENTRY (enables same-bar flip) ───
 
         if exit_long and position_open and last_dir == 1:
-            pct = (
-                -params.sl_risk_pct
-                if exit_long_SL
-                else ((c - entry_price) / entry_price * 100.0) * params.leverage_long
-            )
-            trades.append(Trade(
-                entry_bar=entry_bar, entry_date=entry_date,
-                entry_price=entry_price, direction=1,
-                exit_bar=i, exit_date=dates[i],
-                exit_price=c,
-                exit_type="SL" if exit_long_SL else "CL",
-                pct=pct,
-            ))
+            if exit_long_SL:
+                if params.atr_sl_enable:
+                    # ATR SL: actual loss based on price distance to frozen SL level
+                    pct = ((sl_long_level - entry_price) / entry_price * 100.0) * params.leverage_long
+                else:
+                    pct = -params.sl_risk_pct
+            else:
+                pct = ((c - entry_price) / entry_price * 100.0) * params.leverage_long
+            if trade_start is None or entry_date >= trade_start:
+                trades.append(Trade(
+                    entry_bar=entry_bar, entry_date=entry_date,
+                    entry_price=entry_price, direction=1,
+                    exit_bar=i, exit_date=dates[i],
+                    exit_price=c,
+                    exit_type="SL" if exit_long_SL else "CL",
+                    pct=pct,
+                ))
             position_open       = False
             long_above_fast_ma  = False
             short_below_fast_ma = False
             entry_price         = 0.0
 
         elif exit_short and position_open and last_dir == -1:
-            pct = (
-                -params.sl_risk_pct
-                if exit_short_SL
-                else ((entry_price - c) / entry_price * 100.0) * params.leverage_short
-            )
-            trades.append(Trade(
-                entry_bar=entry_bar, entry_date=entry_date,
-                entry_price=entry_price, direction=-1,
-                exit_bar=i, exit_date=dates[i],
-                exit_price=c,
-                exit_type="SL" if exit_short_SL else "CS",
-                pct=pct,
-            ))
+            if exit_short_SL:
+                if params.atr_sl_enable:
+                    # ATR SL: actual loss based on price distance to frozen SL level
+                    pct = ((entry_price - sl_short_level) / entry_price * 100.0) * params.leverage_short
+                else:
+                    pct = -params.sl_risk_pct
+            else:
+                pct = ((entry_price - c) / entry_price * 100.0) * params.leverage_short
+            if trade_start is None or entry_date >= trade_start:
+                trades.append(Trade(
+                    entry_bar=entry_bar, entry_date=entry_date,
+                    entry_price=entry_price, direction=-1,
+                    exit_bar=i, exit_date=dates[i],
+                    exit_price=c,
+                    exit_type="SL" if exit_short_SL else "CS",
+                    pct=pct,
+                ))
             position_open       = False
             long_above_fast_ma  = False
             short_below_fast_ma = False
@@ -280,6 +330,7 @@ def run_strategy(df: pd.DataFrame, params: AMBParams,
             last_dir            = 1
             position_open       = True
             entry_price         = c
+            entry_atr           = float(atr[i]) if not np.isnan(atr[i]) else 0.0
             entry_bar           = i
             entry_date          = dates[i]
             long_above_fast_ma  = c > f
@@ -289,13 +340,14 @@ def run_strategy(df: pd.DataFrame, params: AMBParams,
             last_dir            = -1
             position_open       = True
             entry_price         = c
+            entry_atr           = float(atr[i]) if not np.isnan(atr[i]) else 0.0
             entry_bar           = i
             entry_date          = dates[i]
             short_below_fast_ma = c < f
             long_above_fast_ma  = False
 
     # ── Close open position at last bar (unrealized → realized) ─────────────
-    if position_open and entry_price > 0:
+    if position_open and entry_price > 0 and (trade_start is None or entry_date >= trade_start):
         c = close[-1]
         if last_dir == 1:
             pct = ((c - entry_price) / entry_price * 100.0) * params.leverage_long

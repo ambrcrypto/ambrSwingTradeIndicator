@@ -18,11 +18,11 @@ from .strategy_amb import AMBParams
 TICKER_CONFIG: dict[str, AMBParams] = {
     # ── Crypto ────────────────────────────────────────────────────────────
     "BTC-USD": AMBParams(
-        slow_ma_len=130, slow_ma_type="SMA",   # v1.5.x opt: SMA robuster als EMA
-        fast_ma_len=60,  fast_ma_type="SMA",   # v1.5.x opt: 60 > 44 (weniger Fehlsig.)
+        slow_ma_len=130, slow_ma_type="SMA",   # v1.6.x opt: SMA robuster als EMA
+        fast_ma_len=44,  fast_ma_type="SMA",   # v1.6.x opt: 44 > 60 (7/7 Regime-Perioden)
         use_fast_ma=True,
-        leverage_long=4.0, leverage_short=1.0,  # v1.5.x opt: Long 3→4×
-        sl_enable=True, sl_risk_pct=9.0,        # v1.5.x opt: SL 8→9%
+        leverage_long=3.0, leverage_short=0.5,  # v1.6.x opt: LS0.5× = 18% Short-Preistoleranz bei SL9
+        sl_enable=True, sl_risk_pct=9.0,        # v1.6.x opt: SL 9% (Long 3% / Short 18% Preistoleranz)
         signal_tf="D",
     ),
     "ETH-USD": AMBParams(
