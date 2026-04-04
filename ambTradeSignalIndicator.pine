@@ -12,7 +12,9 @@ slowMA_show = input.bool(true,       "Show on Chart", group="Slow MA")
 // ═══════════════════════════════════════════════════════════════════════
 // INPUTS: Fast MA (Exit + Re-Entry Trigger)
 // ═══════════════════════════════════════════════════════════════════════
-fastMA_tf   = input.timeframe("D",   "Fast MA TF",   group="Fast MA")useFastMA   = input.bool(true,       "Use Fast MA (false = Slow MA only)", group="Fast MA")fastMA_type = input.string("SMA",    "Type",          options=["SMA","EMA"], group="Fast MA")
+fastMA_tf   = input.timeframe("D",   "Fast MA TF",   group="Fast MA")
+useFastMA   = input.bool(true,       "Use Fast MA (false = Slow MA only)", group="Fast MA")
+fastMA_type = input.string("SMA",    "Type",          options=["SMA","EMA"], group="Fast MA")
 fastMA_len  = input.int(44,          "Length",        minval=1, group="Fast MA")
 
 // ═══════════════════════════════════════════════════════════════════════
