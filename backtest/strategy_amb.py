@@ -34,6 +34,13 @@ class AMBParams:
     atr_sl_enable:  bool  = False
     atr_sl_len:     int   = 14      # ATR period (Wilder's RMA, same as Pine ta.atr)
     atr_sl_mult:    float = 2.5     # SL distance = ATR_at_entry × atr_mult
+    # ATR-based entry filter (additional condition on top of MA crossover)
+    # long_entry only when (close - slowMA) >= ATR × atr_long_mult
+    # short_entry only when (slowMA - close) >= ATR × atr_short_mult
+    atr_entry_enable:   bool  = False
+    atr_entry_len:      int   = 14
+    atr_long_mult:      float = 1.7
+    atr_short_mult:     float = 1.5
     start_capital:  float = 1000.0
     signal_tf:      str   = "D"    # "D"=daily, "W"=weekly, "M"=monthly
 
@@ -72,8 +79,12 @@ class AMBParams:
             "sl_risk_pct":    self.sl_risk_pct,
             "atr_sl_enable":  self.atr_sl_enable,
             "atr_sl_len":     self.atr_sl_len,
-            "atr_sl_mult":    self.atr_sl_mult,
-            "signal_tf":      self.signal_tf,
+            "atr_sl_mult":       self.atr_sl_mult,
+            "atr_entry_enable": self.atr_entry_enable,
+            "atr_entry_len":    self.atr_entry_len,
+            "atr_long_mult":    self.atr_long_mult,
+            "atr_short_mult":   self.atr_short_mult,
+            "signal_tf":        self.signal_tf,
         }
 
 
@@ -181,9 +192,10 @@ def run_strategy(df: pd.DataFrame, params: AMBParams,
     dates   = df.index
     n       = len(df)
 
-    slow_ma = _calc_ma(close_s, params.slow_ma_len, params.slow_ma_type)
-    fast_ma = _calc_ma(close_s, params.fast_ma_len, params.fast_ma_type)
-    atr     = _calc_atr(high, low_, close, params.atr_sl_len) if params.atr_sl_enable else np.full(n, np.nan)
+    slow_ma   = _calc_ma(close_s, params.slow_ma_len, params.slow_ma_type)
+    fast_ma   = _calc_ma(close_s, params.fast_ma_len, params.fast_ma_type)
+    atr       = _calc_atr(high, low_, close, params.atr_sl_len) if params.atr_sl_enable else np.full(n, np.nan)
+    atr_entry = _calc_atr(high, low_, close, params.atr_entry_len) if params.atr_entry_enable else np.full(n, np.nan)
     signal_days = _first_day_mask(dates, params.signal_tf)
 
     # ── State ──────────────────────────────────────────────────────────────
@@ -195,6 +207,13 @@ def run_strategy(df: pd.DataFrame, params: AMBParams,
     entry_atr:           float = 0.0    # ATR value frozen at entry (ATR SL mode only)
     entry_bar:           int   = 0
     entry_date:          pd.Timestamp = dates[0]
+
+    # Pending entry state (ATR entry filter mode)
+    # After a MA crossover, wait until close reaches MA_at_cross +/- ATR_at_cross * mult
+    pending_long:        bool  = False
+    pending_short:       bool  = False
+    pending_long_level:  float = 0.0    # close must reach >= this to enter long
+    pending_short_level: float = 0.0    # close must reach <= this to enter short
 
     trades: list[Trade] = []
 
@@ -269,6 +288,47 @@ def run_strategy(df: pd.DataFrame, params: AMBParams,
         short_entry   = (not position_open) and (last_dir != -1) and cross_below_slow
         short_reentry = (not position_open) and (last_dir == -1) and cross_below_fast and (c < s)
 
+        # ── ATR pending entry filter ─────────────────────────────────────────
+        # On MA crossover: arm a pending entry. Actual entry fires on a later
+        # bar when close reaches MA_at_cross +/- ATR_at_cross * mult.
+        # Pending is cancelled if price crosses back below/above slow MA.
+        if params.atr_entry_enable:
+            ae = atr_entry[i] if not np.isnan(atr_entry[i]) else 0.0
+
+            # Arm pending long on crossover (only for first-time entries, not reentry/flip)
+            if (not position_open) and (last_dir != 1) and cross_above_slow and ae > 0:
+                pending_long        = True
+                pending_short       = False
+                pending_long_level  = s + ae * params.atr_long_mult  # s = slowMA at cross bar
+                long_entry = False  # suppress immediate entry
+
+            # Arm pending short on crossover
+            if (not position_open) and (last_dir != -1) and cross_below_slow and ae > 0:
+                pending_short       = True
+                pending_long        = False
+                pending_short_level = s - ae * params.atr_short_mult  # price must drop to here
+                short_entry = False  # suppress immediate entry
+
+            # Cancel pending if MA crossed back
+            if pending_long  and cross_below_slow:
+                pending_long  = False
+            if pending_short and cross_above_slow:
+                pending_short = False
+            # Cancel pending if position was opened (e.g. via reentry/flip)
+            if position_open:
+                pending_long  = False
+                pending_short = False
+
+            # Fire pending long when close reaches target level
+            if pending_long and (not position_open) and c >= pending_long_level:
+                long_entry   = True
+                pending_long = False
+
+            # Fire pending short when close reaches target level
+            if pending_short and (not position_open) and c <= pending_short_level:
+                short_entry   = True
+                pending_short = False
+
         # ── Flip logic ──────────────────────────────────────────────────────
         # SL-exit does NOT block flip when Slow MA is simultaneously crossed
         flip_to_short = exit_long  and cross_below_slow and params.allow_shorts
@@ -335,6 +395,8 @@ def run_strategy(df: pd.DataFrame, params: AMBParams,
             entry_date          = dates[i]
             long_above_fast_ma  = c > f
             short_below_fast_ma = False
+            pending_long        = False
+            pending_short       = False
 
         elif short_signal:
             last_dir            = -1
@@ -345,6 +407,8 @@ def run_strategy(df: pd.DataFrame, params: AMBParams,
             entry_date          = dates[i]
             short_below_fast_ma = c < f
             long_above_fast_ma  = False
+            pending_long        = False
+            pending_short       = False
 
     # ── Close open position at last bar (unrealized → realized) ─────────────
     if position_open and entry_price > 0 and (trade_start is None or entry_date >= trade_start):
