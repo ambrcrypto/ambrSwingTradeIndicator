@@ -50,21 +50,15 @@ Wenn ein Exit durch einen **Slow MA Cross** ausgelöst wird (oder gleichzeitig d
 
 ---
 
-## ATR-Erweiterung (V2 – noch nicht implementiert)
+## ATR-Erweiterung (getestet in v1.6.0, verworfen)
 
-ATR als optionaler Puffer, der **pro Situation** (Entry / Re-Entry / Exit) separat aktiviert werden kann, um Fehlsignale bei hoher Volatilität zu reduzieren.
+ATR Pending Entry Filter wurde als optionale Erweiterung getestet:
+- Mechanismus: Nach MA-Cross Pending-Entry setzen; feuert wenn `close >= MA_at_cross + ATR×mult`
+- Optimale Multiplikatoren aus Urversion: Long 1.7×, Short 1.5×
+- Backtest-Ergebnis (BTC-USD 2021→2026): Baseline +2370% schlägt alle ATR-Varianten
+- **Entscheidung: Feature verworfen. Baseline bleibt optimal.**
 
-| Situation  | Ohne ATR                    | Mit ATR                                  |
-|------------|-----------------------------|------------------------------------------|
-| OL Entry   | Crossover Slow MA           | Kurs schliesst über Slow MA + ATR×Faktor |
-| OL Re-Entry| Crossover Fast MA           | Kurs schliesst über Fast MA + ATR×Faktor |
-| CL Exit A  | Crossunder Fast MA          | Kurs schliesst unter Fast MA − ATR×Faktor|
-| CL Exit B  | Crossunder Slow MA          | Kurs schliesst unter Slow MA − ATR×Faktor|
-| OS / CS    | (spiegelverkehrt)           | (spiegelverkehrt)                        |
-
-### Geplante Optionen für V2
-- ATR-Faktor separat für Entry, Re-Entry und Exit konfigurierbar
-- Optionaler Filter: Mindestanzahl Kerzen auf einer Seite vor Signal
+ATR als Exit-Puffer (Exit A/B mit ATR-Abstand) weiterhin als V2-Option offen.
 
 ---
 

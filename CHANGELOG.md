@@ -2,6 +2,50 @@
 
 ---
 
+## [v1.6.1] – 2026-04-04 ✅ Live Config (aktuell)
+
+### Änderung
+- `sl_risk_pct`: 9.0% → **6.0%** (Revert gegenüber v1.6.0)
+- `ticker_config.py` BTC-USD: sl_risk_pct 9.0 → 6.0
+
+### Begründung
+- Robustness-Vergleich 9% vs 6%: SL6% zeigt eindeutig bessere P/L (+2370% vs +1980%) bei praktisch identischem MaxDD
+- LL3×/SL6% = 2% Long-Preistoleranz (strukturelles Risiko bei BTC-Tages-Wick, akzeptierter Tradeoff)
+- LS0.5×/SL6% = 12% Short-Preistoleranz (praktisch nie ausgelöst)
+
+### Live Config
+`LL3×/LS0.5×/SL6%/SMA130/44` – alle Dateien synchron
+
+---
+
+## [v1.6.0] – 2026-04-04
+
+### Features
+
+#### Neue Live-Konfiguration BTC-USD
+- `leverageLong`: 4.0 → **3.0** (7-Perioden-Robustness: LL3× gewinnt 5/7)
+- `leverageShort`: 1.0 → **0.5** (LS0.5× eliminiert Short-SL-Risiko, Compounding-Effekt erhalten)
+- `sl_risk_pct`: 9.0% (später in v1.6.1 auf 6.0% revertiert)
+- `slow_ma_type`: EMA → **SMA** (robuster über alle Perioden)
+- `fast_ma_len`: 60 → **44** (44 gewinnt in 7/7 Perioden vs 60)
+
+#### Python Backtest: 7-Perioden BTC Regime-Robustness
+- 7 nicht-überlappende BTC-Marktphasen P1–P7 definiert (Bull/Bear/Seitwärts)
+- `run_optimize.py`: `btc_quick` / `btc_full` Modi ergänzt
+- `data.py`: P1–P7 Periodendefinitionen hinzugefügt
+- Robustness-Kriterium: MinCalmar und Anzahl Perioden mit positivem Calmar
+
+#### Bugfix: trade_start
+- `run_strategy()`: `trade_start`-Parameter hatte bei Robustness-Runs die MA-Warmup-Phase nicht korrekt berücksichtigt → korrigiert
+
+#### ATR Pending Entry Filter (getestet, verworfen)
+- `strategy_amb.py`: `atr_entry_enable` / `atr_entry_len` / `atr_long_mult` / `atr_short_mult` zu AMBParams hinzugefügt
+- Mechanismus: Nach MA-Cross wird Pending-Entry generiert; feuert wenn `close >= MA_at_cross + ATR × mult`
+- Backtest-Ergebnis: Baseline +2370% schlägt alle ATR-Varianten (beste: L0.5/S0.5 = +2372%, dd 29% vs 32%)
+- Entscheidung: ATR Pending Entry bringt keinen Mehrwert → Baseline beibehalten
+
+---
+
 ## [v1.5.4] – 2026-04-04 ✅ Freigegeben
 
 ### Features
