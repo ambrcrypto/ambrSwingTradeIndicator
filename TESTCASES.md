@@ -70,14 +70,46 @@
 
 ---
 
+## Gruppe D – Stop Loss (SL)
+
+| TC | Signal | Ausgangslage | Bedingung | Erwartetes Resultat |
+|---|---|---|---|---|
+| D-01 | **SL Long** | Long offen, SL-Level berechnet | Intrabar-Low ≤ SL-Level | Position geschlossen, P/L = −sl_risk_pct% |
+| D-02 | **SL Short** | Short offen, SL-Level berechnet | Intrabar-High ≥ SL-Level | Position geschlossen, P/L = −sl_risk_pct% |
+| D-03 | **Flip trotz SL** | Long offen | SL getroffen **und** SlowMA gleichzeitig gekreuzt | SL-Exit + Short-Entry auf gleicher Kerze (Flip erlaubt) |
+| D-04 | – | Long offen | SL getroffen, **kein** SlowMA-Cross | Nur SL-Exit, kein Flip |
+
+---
+
+## Gruppe E – Alerts
+
+| TC | Alert | Bedingung | Erwartetes Resultat |
+|---|---|---|---|
+| E-01 | **ENTER LONG** | `longSignal` auf bestätigter Kerze | Alert feuert einmal |
+| E-02 | **EXIT LONG** | `exitLong` auf bestätigter Kerze | Alert feuert einmal |
+| E-03 | **ENTER SHORT** | `shortSignal` auf bestätigter Kerze | Alert feuert einmal |
+| E-04 | **EXIT SHORT** | `exitShort` auf bestätigter Kerze | Alert feuert einmal |
+| E-05 | **Flip Long→Short** | `exitLong` + `shortSignal` auf gleicher Kerze | EXIT LONG **und** ENTER SHORT feuern beide (2 Alerts/Bar) |
+| E-06 | **Flip Short→Long** | `exitShort` + `longSignal` auf gleicher Kerze | EXIT SHORT **und** ENTER LONG feuern beide (2 Alerts/Bar) |
+
+---
+
 ## Test-Status
 
 | TC-Gruppe | Status | Letzte Prüfung | Anmerkungen |
 |---|---|---|---|
-| A – Erstmalige Entries | 🔲 Offen | – | – |
-| B – Re-Entries | 🔲 Offen | – | – |
-| C – Exits | � In Test | 2026-04-03 | C-08 war Bug (CHG-002), Fix umgesetzt in v1.3 |
-| F – Flip | 🟡 In Test | 2026-04-03 | CHG-001, Schritt 9 |
+| A – Erstmalige Entries | 🟢 Implizit verifiziert | 2026-04-06 | Logik Python ↔ Pine identisch (BACKTEST_COMPARISON.md); kein manueller TV-Test |
+| B – Re-Entries | 🟢 Implizit verifiziert | 2026-04-06 | s. o. |
+| C – Exits | ✅ Bestätigt | 2026-04-03 | C-08 war Bug (CHG-002), Fix in v1.3 umgesetzt und verifiziert |
+| D – Stop Loss | 🔲 Offen | – | TCs neu definiert 2026-04-06; manuelle TV-Prüfung ausstehend |
+| E – Alerts | 🔲 Offen | – | TCs neu definiert 2026-04-06; Alert-Feuerung in TV prüfen |
+| F – Flip | ✅ Bestätigt | 2026-04-03 | CHG-001 Schritt 9; inkl. SL-Flip (D-03) |
+
+**Legende:**
+- ✅ Bestätigt = manuell in TradingView getestet, Pass dokumentiert
+- 🟢 Implizit verifiziert = Python-Backtest bestätigt korrekte Logik; TV-Abgleich via BACKTEST_COMPARISON.md
+- 🟡 In Test = laufend
+- 🔲 Offen = noch nicht getestet
 
 ---
 
@@ -86,3 +118,4 @@
 | Datum | Änderung |
 |---|---|
 | 2026-04-03 | Initiale Version erstellt. Gruppen A/B neu, C und F aus CHG-001 übernommen und erweitert. |
+| 2026-04-06 | Status A/B auf "Implizit verifiziert" gesetzt. Gruppen D (SL) und E (Alerts) neu ergänzt. Legende präzisiert. |
