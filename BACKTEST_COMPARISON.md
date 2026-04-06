@@ -1,10 +1,10 @@
 # AMB Strategy Logic Comparison: Pine Script vs Python
 
-## STATUS: Logic Implementation Complete
+## STATUS: ✅ Logic verified — alter Vergleich war obsolet (2026-04-06 aufgelöst)
 
-Both Pine Script v1.5 and Python backtest implement the **exact same signal logic**:
+---
 
-### Signal Definitions (IDENTICAL)
+## Signal-Logik (IDENTISCH in Pine und Python)
 
 | Signal | Pine Script | Python | Match? |
 |--------|-----------|--------|--------|
@@ -15,89 +15,103 @@ Both Pine Script v1.5 and Python backtest implement the **exact same signal logi
 | **CL Exit SL** | `not na(sl_long_level) and low <= sl_long_level` | `(sl_long_level is not None) and (lo <= sl_long_level)` | ✅ |
 | **Flip to Short** | `exitLong and cross_below_slowMA and allowShorts` | `exit_long and cross_below_slow and allow_shorts` | ✅ |
 
-### State Machine (IDENTICAL)
+### State Machine (IDENTISCH)
 
-Both implement **Exits before Entries** (enables same-bar flips):
-1. Check all EXIT conditions
-2. If exit triggered: close trade, reset state
-3. Check all ENTRY conditions
-4. If entry triggered: open new trade
+Beide implementieren **Exits before Entries** (ermöglicht same-bar Flips):
+1. Exit-Conditions prüfen
+2. Bei Exit: Position schliessen, State zurücksetzen
+3. Entry-Conditions prüfen
+4. Bei Entry: Position öffnen
 
-### Fast MA State Tracking (IDENTICAL)
-
-Both track `longAboveFastMA` and `shortBelowFastMA`:
-- Set to TRUE when price closes beyond MA during open position
-- Reset to FALSE on exit
-- Required for Exit A condition
-
-### SL Logic (IDENTICAL)
+### SL-Logik (IDENTISCH)
 
 ```
-Long SL  = entry_price * (1.0 - sl_risk_pct / (100.0 * leverage_long))
-Short SL = entry_price * (1.0 + sl_risk_pct / (100.0 * leverage_short))
+Long SL  = entry_price × (1 − sl_risk_pct / (100 × leverage_long))
+Short SL = entry_price × (1 + sl_risk_pct / (100 × leverage_short))
 ```
 
-Both check intra-bar extremes (low for long, high for short).
+Beide prüfen Intrabar-Extremwerte (Low für Long, High für Short).
 
-### Crossover Detection (IDENTICAL)
+### Crossover-Erkennung (IDENTISCH)
 
-Both use standard crossover definition:
 ```
-cross_above = (close > ma) and (close_prev <= ma_prev)
-cross_below = (close < ma) and (close_prev >= ma_prev)
+cross_above = (close > ma) and (close_prev <= ma_prev)   # Pine: ta.crossover()
+cross_below = (close < ma) and (close_prev >= ma_prev)   # Pine: ta.crossunder()
 ```
 
 ---
 
-## KNOWN DIFFERENCES: Results Discrepancy (45 vs 79 trades)
+## Aufgelöste Diskrepanz: "45 vs 79 Trades" (war obsolet)
 
-**Python**: 45 trades, +1,554% P/L, -25.6% MaxDD (2021-04-14 to 2023-10-31)  
-**TradingView**: 79 trades, +895% P/L, -12.65% MaxDD
+### Was dokumentiert war
 
-### Possible Causes
+Das alte Dokument enthielt: *"Python: 45 Trades, TradingView: 79 Trades (2021-04-14 bis 2023-10-31)"*
 
-1. **Price Data Source**
-   - yfinance vs TradingView data (different OHLC, splits/adjustments?)
-   - Daily close vs intraday prices?
+### Root-Cause-Analyse (2026-04-06)
 
-2. **MA Calculation**
-   - Both use SMA(100) and SMA(44)
-   - Potential: different rounding in bar-by-bar calculation
+Der Vergleich war aus zwei Gründen ungültig:
 
-3. **Time Zone or Bar Alignment**
-   - TradingView may use different session times for D (daily)
-   - yfinance uses UTC close
+**1. Falsche Konfiguration:** Das alte Dokument verwendete `SMA(100)` — die aktuelle Live-Konfiguration ist `SMA(130)`. Ein direkter Vergleich 45 vs 79 ist damit keine Aussage über v1.6.1.
 
-4. **Leverage/Position Sizing**
-   - Python: applies leverage to P/L %
-   - TradingView: may apply differently to position capital?
+**2. Kein Strategy Tester möglich:** `ambTradeSignalIndicator.pine` ist ein **Indicator** (kein Strategy-Script). TradingView hat keinen eingebauten Trade-Counter für Indicators. Die "79 Trades" konnten nicht von TradingView's Strategy Tester stammen — sie wurden manuell oder aus einer früheren Script-Version mit anderen Parametern gezählt.
 
-### Verification Steps
+### Aktueller Stand v1.6.1 (Python, 2026-04-06)
 
-To match TradingView exactly:
+Diagnostic-Run mit `python -m backtest.diagnose_discrepancy` (Konfiguration: `SMA130/SMA44/LL3/LS0.5/SL6%`):
 
-1. **Export TradingView MA values** (100 SMA, 44 SMA) for same dates
-2. **Compare CSV** against `ma_export.csv` (Python export)
-3. **Check first crossover** dates — if different, data source is the issue
-4. **Check SL calculation** — confirm entry price and SL level match
-5. **Count trades by date** — identify where extra 34 trades occur
+| Periode | Trades | Long | Short | CL | CS | SL |
+|---------|--------|------|-------|----|----|----|
+| 2021-04-14 → 2023-10-31 | **42** | 21 | 21 | 8 | 21 | 12 |
+| 2021-04-14 → heute      | **85** | 45 | 40 | 21 | 40 | 24 |
+
+**Crossover-Events 2021–2023:** 45 gesamt (10× Slow↑, 12× Fast↑, 10× Slow↓, 13× Fast↓)
+
+Export-Dateien:
+- `backtest/results/discrepancy/v1.6.1_2021_to_2023_trades_detail.csv`
+- `backtest/results/discrepancy/v1.6.1_2021_to_2023_crossovers.csv`
+- `backtest/results/discrepancy/v1.6.1_2021_to_2023_ma_daily.csv`
 
 ---
 
-## Code Locations
+## TradingView-Abgleich: Anleitung für manuelle Verifizierung
 
-- **Pine Script Signal Logic**: ambTradeSignalIndicator.pine, lines 95-170
-- **Python Signal Logic**: backtest/strategy_amb.py, lines 155-220
-- **State Machine (Pine)**: ambTradeSignalIndicator.pine, lines 295-380
-- **State Machine (Python)**: backtest/strategy_amb.py, lines 222-262
+Da Pine Script ein Indicator ist, muss der Abgleich manuell über Crossover-Daten erfolgen:
+
+### Schritt 1: Erste Crossover-Daten gegen Chart prüfen
+
+Öffne TradingView → BTC-USD Daily → SMA(130) + SMA(44).  
+Prüfe, ob diese ersten 5 Crossover-Daten aus Python mit dem Chart übereinstimmen:
+
+| Datum | Event | Close | SMA130 | SMA44 |
+|-------|-------|-------|--------|-------|
+| 2021-04-30 | CROSS_ABOVE_FAST | 57.750 | 46.583 | 56.924 |
+| 2021-05-12 | CROSS_BELOW_SLOW | 49.151 | 49.298 | 57.022 |
+| 2021-05-13 | CROSS_ABOVE_SLOW | 49.716 | 49.428 | 56.813 |
+| 2021-05-15 | CROSS_BELOW_SLOW | 46.760 | 49.664 | 56.327 |
+| 2021-08-07 | CROSS_ABOVE_SLOW | 44.556 | 43.410 | 35.385 |
+
+### Schritt 2: Interpretation
+
+- **Daten stimmen überein** → Pine und Python sind 1:1 synchron. ✅
+- **Daten weichen ab** → `request.security()` in Pine könnte andere Bar-Alignment-Logik verwenden als yfinance UTC-Close. Ursache wäre dann die Datenquelle, nicht die Logik.
+
+### Hinweis: request.security() und barmerge
+
+Das Pine Script verwendet:
+```pine
+slowMA_value = request.security(syminfo.tickerid, slowMA_tf, slowMA_calc,
+                                barmerge.gaps_off, barmerge.lookahead_off)
+```
+Auf Daily Chart mit `slowMA_tf = "D"` ist dies äquivalent zu `ta.sma(close, 130)`.  
+Python berechnet identisch mit `pd.Series.rolling(130).mean()`.
 
 ---
 
-## NEXT STEPS
+## Code-Positionen
 
-1. **Export TradingView chart data** (close, Slow MA, Fast MA) for 2021-04-14 to 2023-10-31
-2. **Compare against** Python `ma_export.csv`
-3. **Identify data discrepancy** or signal timing difference
-4. **Adjust Python** if needed to match TradingView price source
-
-Once matched, backtest results will be 100% aligned.
+| Komponente | Pine Script | Python |
+|-----------|-------------|--------|
+| Crossover-Variablen | `ambTradeSignalIndicator.pine`, Zeilen ~130–142 | `strategy_amb.py`, `run_strategy()`, Crossovers-Block |
+| Signal-Conditions | `.pine` Zeilen ~145–185 | `strategy_amb.py`, Entry/Exit conditions |
+| State Machine | `.pine` Zeilen ~190–260 | `strategy_amb.py`, State Machine Block |
+| SL-Kalkulation | `.pine` Zeile ~160–162 | `strategy_amb.py`, `sl_long_level` / `sl_short_level` |

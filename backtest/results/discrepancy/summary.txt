@@ -1,0 +1,48 @@
+AMB v1.6.1 BTC-USD – Discrepancy Diagnostic
+Config: S130SMA / F44SMA / LL3.0 / LS0.5 / SL6.0%
+
+PURPOSE: Identify root cause of Pine Script vs Python trade-count discrepancy.
+NOTE: BACKTEST_COMPARISON.md referenced the OLD config (SMA100); v1.6.1 uses SMA130.
+
+
+============================================================
+  Period: v1.6.1_2021_to_2023
+  Config: S130SMA / F44SMA / LL3.0 / LS0.5 / SL6.0%
+  Range:  2021-04-14 → 2023-10-31
+============================================================
+  Trades total:    42
+  → Long:          21
+  → Short:         21
+  Exit breakdown:
+  → CL (close L):  8
+  → CS (close S):  21
+  → SL:            12
+
+  Crossover events (in trade window):
+  → Cross ABOVE SlowMA:  10  (Long entry trigger)
+  → Cross ABOVE FastMA:  12  (Long re-entry trigger)
+  → Cross BELOW SlowMA:  10  (Short entry trigger)
+  → Cross BELOW FastMA:  13  (Short re-entry trigger)
+  Total crossovers:      45
+============================================================
+
+============================================================
+  Period: v1.6.1_2021_to_now
+  Config: S130SMA / F44SMA / LL3.0 / LS0.5 / SL6.0%
+  Range:  2021-04-14 → present
+============================================================
+  Trades total:    85
+  → Long:          45
+  → Short:         40
+  Exit breakdown:
+  → CL (close L):  21
+  → CS (close S):  40
+  → SL:            24
+
+  Crossover events (in trade window):
+  → Cross ABOVE SlowMA:  22  (Long entry trigger)
+  → Cross ABOVE FastMA:  30  (Long re-entry trigger)
+  → Cross BELOW SlowMA:  23  (Short entry trigger)
+  → Cross BELOW FastMA:  23  (Short re-entry trigger)
+  Total crossovers:      98
+============================================================
