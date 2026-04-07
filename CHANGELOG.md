@@ -2,7 +2,23 @@
 
 ---
 
-## [v1.6.1] – 2026-04-04 ✅ Live Config (aktuell)
+## [v1.7.0] – 2026-04-07 ✅ Live Config (aktuell)
+
+### Feature: Health Monitor Dashboard
+- Neue Input-Gruppe **Health Monitor** mit 4 konfigurierbaren Schwellwerten:
+  - `hm_min_exp` = 3.0% (Min Expectancy)
+  - `hm_min_win` = 15.0% (Min Win Rate)
+  - `hm_max_dd` = 55.0% (Max MaxDD)
+  - `hm_max_sl_rate` = 50.0% (Max SL Rate)
+- **SL-Rate** neu berechnet: Anteil Trades die via Stop Loss geschlossen wurden
+- **Dashboard-Zeile 5** (Health Status): `✓ System OK` (grün) / `⚠ REVISION CHECK` (rot)
+- Betroffene Metriken färben sich rot bei Schwellwertüberschreitung (Win%, MaxDD, SL%)
+- Expectancy: dreistufig grün/orange/rot (ok / warn / negativ)
+- Baseline v1.6.1: Exp 8.28%, Win 25%, MaxDD 31.89%, SL-Rate ~27%
+
+---
+
+## [v1.6.1] – 2026-04-04
 
 ### Änderung
 - `sl_risk_pct`: 9.0% → **6.0%** (Revert gegenüber v1.6.0)

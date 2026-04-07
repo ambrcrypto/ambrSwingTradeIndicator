@@ -2,6 +2,36 @@
 
 ---
 
+## CHG-006 – Health Monitor: KPI-Revisionswarnung im Dashboard
+
+| Feld | Inhalt |
+|---|---|
+| **ID** | CHG-006 |
+| **Status** | ✅ Abgeschlossen |
+| **Version** | v1.7.0 |
+| **Datum** | 2026-04-07 |
+| **Requested by** | User |
+
+### Change Request
+Baseline-KPIs direkt im Pine Script Dashboard verankern. Dashboard soll warnen wenn KPIs unter konfigurierbare Schwellwerte fallen, damit Parameterrevision rechtzeitig erkannt wird.
+
+### Implementierung
+- Neue Input-Gruppe „Health Monitor" mit `hm_enable`, `hm_min_exp`, `hm_min_win`, `hm_max_dd`, `hm_max_sl_rate`
+- SL-Rate-Berechnung (`sl_count / trades`) neu hinzugefügt
+- Dashboard um Zeile 5 erweitert: Status-Zelle + SL%-Anzeige + Schwellwert-Info
+- Farblogik: Exp orange bei warn, rot bei negativ; Win/MaxDD/SL% rot bei Überschreitung
+- Table von `4×4` auf `4×5` erweitert
+
+### Baseline v1.6.1 (ab 2022-11-21, BTC/USD)
+| KPI | Baseline | Warnschwelle |
+|---|---|---|
+| Expectancy | 8.28% | < 3.0% |
+| Win Rate | 25% | < 15% |
+| MaxDD | 31.89% | > 55% |
+| SL Rate | ~27% | > 50% |
+
+---
+
 ## CHG-001 – Flip-Logik: Exit + Entry auf gleicher Kerze
 
 | Feld | Inhalt |
