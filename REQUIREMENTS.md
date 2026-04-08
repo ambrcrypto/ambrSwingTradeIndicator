@@ -87,6 +87,48 @@ ATR als Exit-Puffer (Exit A/B mit ATR-Abstand) weiterhin als V2-Option offen.
 
 ---
 
+## Revisionsprozess (Health Monitor)
+
+Der Health Monitor im Dashboard zeigt permanent ob die Strategie noch innerhalb der Basis-KPIs operiert. Diese KPIs werden nach jeder Parameteranpassung neu kalibriert.
+
+### Revisions-Trigger
+
+| Trigger | Beschreibung |
+|---|---|
+| **Kalender** | Pflichtrevision alle 6 Monate: **1. Oktober** und **1. April** jeden Jahres |
+| **Event** | Sofortrevision sobald Dashboard `⚠ REVISION CHECK` zeigt |
+
+Nächste Pflichtrevision: **2026-10-01**
+
+### Revisionsdurchführung
+
+| Schritt | Wer | Was |
+|---|---|---|
+| **1. Daten erheben** | User | TradingView Dashboard-Screenshot, Python Backtest mit aktuellem Startdatum |
+| **2. KPI-Analyse** | BA + Trading Experte | Vergleich Ist-KPIs vs. Baseline-Schwellwerte, Ursachenanalyse |
+| **3. Entscheid** | User | Parameter beibehalten / anpassen |
+| **4a. Beibehalten** | BA | Revisionsdatum aktualisieren, in CHANGELOG dokumentieren |
+| **4b. Anpassen** | Entwickler | Parameter ändern → normaler Change-Prozess (CHG-XXX) |
+| **5. Neue Baseline** | BA | Startdatum := Datum der Parameteranpassung, Health-Monitor-Schwellwerte neu kalibrieren |
+
+### Baseline-Aktualisierung nach Parameteranpassung
+
+1. **Pine Script:** `bt_start_year/month/day` auf Datum der Anpassung setzen
+2. **Pine Script:** `hm_min_exp`, `hm_min_win`, `hm_max_dd`, `hm_max_sl_rate` auf neue Baseline-KPIs kalibrieren (ca. 50% des Baseline-Werts als Warnschwelle)
+3. **Kommentar** im Inputs-Block aktualisieren: `// Baseline vX.Y (ab YYYY-MM-DD): ...`
+4. CHANGELOG + CHANGES aktualisieren, git commit
+
+### Aktuelle Baseline (v1.7.0, ab 2022-11-21, BTC/USD)
+
+| KPI | Baseline-Wert | Warnschwelle (Health Monitor) |
+|---|---|---|
+| Expectancy | 8.28% | < 3.0% |
+| Win Rate | 25% | < 15% |
+| MaxDD | 31.89% | > 55% |
+| SL Rate | ~27% | > 50% |
+
+---
+
 ## Change-Prozess
 
 | Schritt | Wer | Was |
