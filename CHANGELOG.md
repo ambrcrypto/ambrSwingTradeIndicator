@@ -2,6 +2,14 @@
 
 ---
 
+## [v1.7.1] – 2026-04-11
+
+### Fixes
+- Signal-Control-Toggles (`Allow Long Trades?`, `Allow Short Trades?`) greifen jetzt konsistent auch bei Marker-Anzeige und Test-Mode-Labels.
+- Bei deaktivierten Longs/Shorts werden keine zugehoerigen OL/RL/OS/RS Marker oder A01/B01/A03/B04 Test-Labels mehr angezeigt.
+
+---
+
 ## [v1.7.0] – 2026-04-07 ✅ Live Config (aktuell)
 
 ### Feature: Health Monitor Dashboard

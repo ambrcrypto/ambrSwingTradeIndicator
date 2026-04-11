@@ -2,6 +2,43 @@
 
 ---
 
+## CHG-007 – Signal-Control Toggles auch in Anzeige/Test-Labels
+
+| Feld | Inhalt |
+|---|---|
+| **ID** | CHG-007 |
+| **Status** | ✅ Abgeschlossen |
+| **Version** | v1.7.1 |
+| **Datum** | 2026-04-11 |
+| **Requested by** | User |
+
+### Change Request
+Beim Deaktivieren von Longs oder Shorts sollen nicht nur Trades unterbunden werden, sondern auch die zugehoerigen Signal-Marker und Test-Mode-Labels im Chart.
+
+### Ursache
+Trade-Logik war bereits korrekt an `allowLongs` / `allowShorts` gebunden. Die Visualisierung und Teile der Test-Mode-Ausgabe nutzten jedoch direkte Entry/Re-Entry-Flags ohne konsistente Toggle-Gates.
+
+### Umsetzung
+- Neue Anzeige-Flags eingefuehrt:
+  - `disp_long_entry`, `disp_long_reentry`
+  - `disp_short_entry`, `disp_short_reentry`
+- `plotshape()` fuer OL/RL/OS/RS auf diese Flags umgestellt.
+- Test-Mode-Labels A01/B01/A03/B04 mit `allowLongs` bzw. `allowShorts` gegated.
+
+### Test Case
+
+| TC | Szenario | Erwartetes Resultat |
+|---|---|---|
+| TC-TGL-01 | `Allow Long Trades? = false`, `Allow Short Trades? = true` | Keine OL/RL Marker, keine A01/B01 Labels; Short-Signale bleiben sichtbar |
+
+### Test-Feedback (User)
+Freigegeben durch User am 2026-04-11. Verhalten funktioniert wie erwartet.
+
+### Abschluss
+Fix produktiv in v1.7.1 dokumentiert.
+
+---
+
 ## CHG-006 – Health Monitor: KPI-Revisionswarnung im Dashboard
 
 | Feld | Inhalt |
