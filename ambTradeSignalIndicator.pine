@@ -562,14 +562,20 @@ bgcolor(backtest_enable and in_window ? color.new(color.yellow, 90) : na)
 
 show_signal = (not backtest_enable or in_window) and barstate.isconfirmed
 
+// Keep displayed entry/re-entry markers aligned with trade enable toggles.
+disp_long_entry   = (longEntry and allowLongs) or flipToLong
+disp_long_reentry = longReentry and allowLongs
+disp_short_entry  = (shortEntry and allowShorts) or flipToShort
+disp_short_reentry= shortReentry and allowShorts
+
 // Long-Signale unter der Kerze (Dreieck zeigt nach oben), Short-Signale über der Kerze (Dreieck zeigt nach unten)
-plotshape(show_signal and (longEntry or flipToLong),    title="OL Entry",    location=location.belowbar,
+plotshape(show_signal and disp_long_entry,              title="OL Entry",    location=location.belowbar,
           style=shape.triangleup,   size=size.tiny,  color=color.new(color.green, 0), text="OL")
-plotshape(show_signal and longReentry,                  title="OL Re-Entry", location=location.belowbar,
+plotshape(show_signal and disp_long_reentry,            title="OL Re-Entry", location=location.belowbar,
           style=shape.triangleup,   size=size.tiny,  color=color.new(color.green, 0), text="RL")
-plotshape(show_signal and (shortEntry or flipToShort),  title="OS Entry",    location=location.abovebar,
+plotshape(show_signal and disp_short_entry,             title="OS Entry",    location=location.abovebar,
           style=shape.triangledown, size=size.tiny,  color=color.new(color.red,   0), text="OS")
-plotshape(show_signal and shortReentry,                 title="OS Re-Entry", location=location.abovebar,
+plotshape(show_signal and disp_short_reentry,           title="OS Re-Entry", location=location.abovebar,
           style=shape.triangledown, size=size.tiny,  color=color.new(color.red,   0), text="RS")
 plotshape(show_signal and exitLong  and not exitLong_SL,  title="Close Long",  location=location.belowbar,
           style=shape.cross,        size=size.tiny,  color=color.new(color.orange, 0), text="CL")
@@ -585,9 +591,9 @@ if test_mode and show_signal
     lbl_bg  = color.new(color.gray, 30)
     lbl_txt = color.white
     lbl_sz  = size.small
-    if longEntry
+    if longEntry and allowLongs
         label.new(bar_index, close, "A01", yloc=yloc.abovebar, color=lbl_bg, style=label.style_label_down, textcolor=lbl_txt, size=lbl_sz)
-    if longReentry
+    if longReentry and allowLongs
         label.new(bar_index, close, "B01", yloc=yloc.abovebar, color=lbl_bg, style=label.style_label_down, textcolor=lbl_txt, size=lbl_sz)
     if flipToLong
         label.new(bar_index, close, "FL",  yloc=yloc.abovebar, color=lbl_bg, style=label.style_label_down, textcolor=lbl_txt, size=lbl_sz)
@@ -595,9 +601,9 @@ if test_mode and show_signal
         label.new(bar_index, close, "C01", yloc=yloc.abovebar, color=lbl_bg, style=label.style_label_down, textcolor=lbl_txt, size=lbl_sz)
     if exitLong_B
         label.new(bar_index, close, "C02", yloc=yloc.abovebar, color=lbl_bg, style=label.style_label_down, textcolor=lbl_txt, size=lbl_sz)
-    if shortEntry
+    if shortEntry and allowShorts
         label.new(bar_index, close, "A03", yloc=yloc.belowbar, color=lbl_bg, style=label.style_label_up,   textcolor=lbl_txt, size=lbl_sz)
-    if shortReentry
+    if shortReentry and allowShorts
         label.new(bar_index, close, "B04", yloc=yloc.belowbar, color=lbl_bg, style=label.style_label_up,   textcolor=lbl_txt, size=lbl_sz)
     if flipToShort
         label.new(bar_index, close, "FS",  yloc=yloc.belowbar, color=lbl_bg, style=label.style_label_up,   textcolor=lbl_txt, size=lbl_sz)
