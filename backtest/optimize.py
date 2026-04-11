@@ -334,6 +334,7 @@ def run_period(
     end:         str,
     mode:        str = "quick",
     min_trades:  int = 5,
+    source:      str = "yfinance",
     sort_by:     str = "calmar",  # "calmar" | "pl_pct" | "sharpe_trade"
 ) -> list[dict]:
     """
@@ -342,7 +343,7 @@ def run_period(
     Saves full CSV to results/.
     Liquidation-risk runs (MaxDD >= 80%) are always ranked last.
     """
-    df = get_slice(ticker, start, end, warmup=True)
+    df = get_slice(ticker, start, end, warmup=True, source=source)
     # Count bars in trade window for reporting (warmup data is excluded)
     n_window = len(df[df.index >= pd.Timestamp(start)]) if start else len(df)
     if n_window < 60:
@@ -369,7 +370,7 @@ def run_period(
     # ── Save CSV ──────────────────────────────────────────────────────────
     ts     = datetime.now().strftime("%Y%m%d_%H%M%S")
     safe_t = ticker.replace("-", "_").replace("/", "_")
-    csv_path = RESULTS_DIR / f"{safe_t}_{period_name}_{mode}_{ts}.csv"
+    csv_path = RESULTS_DIR / f"{safe_t}_{period_name}_{mode}_{source}_{ts}.csv"
     _save_csv(results, csv_path)
 
     return results
@@ -384,6 +385,7 @@ def run_all(
     periods:    list[str] | None = None,    # None = all available
     mode:       str = "quick",
     min_trades: int = 5,
+    source:     str = "yfinance",
     sort_by:    str = "calmar",
     top_n:      int = 10,
 ) -> dict[str, dict[str, list[dict]]]:
@@ -396,7 +398,7 @@ def run_all(
     all_results: dict[str, dict[str, list[dict]]] = {}
 
     for ticker in tickers:
-        avail = get_periods(ticker)
+        avail = get_periods(ticker, source=source)
         target_periods = periods or list(avail.keys())
         all_results[ticker] = {}
 
@@ -404,11 +406,11 @@ def run_all(
             if pname not in avail:
                 continue
             start, end = avail[pname]
-            rows = run_period(ticker, pname, start, end, mode, min_trades, sort_by)
+            rows = run_period(ticker, pname, start, end, mode, min_trades, source, sort_by)
             all_results[ticker][pname] = rows[:top_n]
 
         # ── Save best params JSON per ticker ──────────────────────────────
-        _save_best_json(ticker, all_results[ticker], sort_by)
+        _save_best_json(ticker, all_results[ticker], sort_by, source=source)
 
     return all_results
 
@@ -421,6 +423,7 @@ def run_robustness(
     ticker:     str,
     mode:       str = "quick",
     min_trades: int = 3,
+    source:     str = "yfinance",
     periods:    list[str] | None = None,
     sort_by:    str = "min_calmar",   # "min_calmar" | "mean_calmar"
 ) -> list[dict]:
@@ -439,7 +442,7 @@ def run_robustness(
     Returns list of dicts sorted best-first, CSV saved to results/.
     Each row: params + min_calmar / mean_calmar / n_positive + per-period calmar/ann/maxdd.
     """
-    avail = get_periods(ticker)
+    avail = get_periods(ticker, source=source)
     # Default: exclude cumulative/overlapping periods (see ROBUSTNESS_EXCLUDE in data.py)
     if periods is None:
         periods = [p for p in avail.keys() if p not in ROBUSTNESS_EXCLUDE]
@@ -450,7 +453,7 @@ def run_robustness(
         if pname not in avail:
             continue
         start, end = avail[pname]
-        df = get_slice(ticker, start, end, warmup=True)
+        df = get_slice(ticker, start, end, warmup=True, source=source)
         ref_ts   = pd.Timestamp(start) if start else df.index[0]
         n_window = len(df[df.index >= ref_ts])
         if n_window < 60:
@@ -510,7 +513,7 @@ def run_robustness(
     # Save CSV
     ts     = datetime.now().strftime("%Y%m%d_%H%M%S")
     safe_t = ticker.replace("-", "_").replace("/", "_")
-    csv_path = RESULTS_DIR / f"{safe_t}_robustness_{mode}_{ts}.csv"
+    csv_path = RESULTS_DIR / f"{safe_t}_robustness_{mode}_{source}_{ts}.csv"
     _save_csv(results, csv_path)
 
     return results
@@ -523,6 +526,7 @@ def run_robustness(
 def cross_period_check(
     ticker:  str,
     params:  AMBParams,
+    source:  str = "yfinance",
     mode:    str = "quick",
 ) -> dict[str, dict]:
     """
@@ -530,10 +534,10 @@ def cross_period_check(
     for a ticker and return metrics per period.
     Useful to test whether a 'best' param set is robust across market regimes.
     """
-    avail = get_periods(ticker)
+    avail = get_periods(ticker, source=source)
     result = {}
     for pname, (start, end) in avail.items():
-        df = get_slice(ticker, start, end, warmup=True)
+        df = get_slice(ticker, start, end, warmup=True, source=source)
         if len(df) < 60:
             continue
         result[pname] = backtest(df, params, start, end, trade_start=start)
@@ -557,6 +561,7 @@ def _save_best_json(
     ticker: str,
     period_results: dict[str, list[dict]],
     sort_by: str,
+    source: str = "yfinance",
 ) -> None:
     """Save the #1 result per period as a JSON file for Pine Script reference."""
     best: dict[str, dict] = {}
@@ -565,7 +570,7 @@ def _save_best_json(
             best[pname] = rows[0]   # already sorted
 
     safe_t = ticker.replace("-", "_").replace("/", "_")
-    json_path = RESULTS_DIR / f"best_{safe_t}.json"
+    json_path = RESULTS_DIR / f"best_{safe_t}_{source}.json"
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(best, f, indent=2, default=str)
 

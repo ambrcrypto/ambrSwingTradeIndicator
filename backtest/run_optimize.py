@@ -45,6 +45,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="AMB grid search optimizer")
     parser.add_argument("--ticker",  default="BTC-USD",
                         help=f"Ticker or 'all'. Known: {ALL_TICKERS}")
+    parser.add_argument("--source",  default="yfinance", choices=["yfinance", "bybit"],
+                        help="Data source")
     parser.add_argument("--period",  default=None,
                         help="Period name or 'all' (default). E.g. 2021_default")
     parser.add_argument("--mode",    default="quick",
@@ -100,9 +102,10 @@ def main() -> None:
                 ticker     = ticker,
                 mode       = args.mode,
                 min_trades = args.min_trades,
+                source     = args.source,
                 sort_by    = args.robustness_sort,
             )
-            rb_periods = [p for p in get_periods(ticker).keys() if p not in ROBUSTNESS_EXCLUDE]
+            rb_periods = [p for p in get_periods(ticker, source=args.source).keys() if p not in ROBUSTNESS_EXCLUDE]
             print_robustness_results(rob_results, ticker, rb_periods, top_n=args.top)
 
             # Optionally show cross-period breakdown for top result
@@ -128,7 +131,7 @@ def main() -> None:
                     f"\n[bold]Cross-Period Breakdown[/bold]  "
                     f"[dim]Best robust params on all periods[/dim]"
                 )
-                cross = cross_period_check(ticker, best_params)
+                cross = cross_period_check(ticker, best_params, source=args.source)
                 print_cross_period(cross, ticker, best_params)
 
         console.print(
@@ -145,6 +148,7 @@ def main() -> None:
             periods     = periods,
             mode        = args.mode,
             min_trades  = args.min_trades,
+            source      = args.source,
             sort_by     = args.sort,
             top_n       = args.top,
         )
@@ -160,7 +164,7 @@ def main() -> None:
         # Single ticker + period
         ticker = tickers[0]
         pname  = periods[0]
-        avail  = get_periods(ticker)
+        avail  = get_periods(ticker, source=args.source)
         if pname not in avail:
             console.print(f"[red]Period '{pname}' not available for {ticker}[/red]")
             console.print(f"Available: {list(avail.keys())}")
@@ -174,6 +178,7 @@ def main() -> None:
             end         = end,
             mode        = args.mode,
             min_trades  = args.min_trades,
+            source      = args.source,
             sort_by     = args.sort,
         )
         print_top_results(rows, ticker, pname, top_n=args.top, sort_by=args.sort)
@@ -201,7 +206,7 @@ def main() -> None:
                 f"\n[bold]Cross-Period Check[/bold]  "
                 f"[dim]Best params from {pname} tested on all periods[/dim]"
             )
-            cross = cross_period_check(ticker, best_params)
+            cross = cross_period_check(ticker, best_params, source=args.source)
             print_cross_period(cross, ticker, best_params)
 
         # ── Monte Carlo on best params ────────────────────────────────────
@@ -225,7 +230,7 @@ def main() -> None:
             )
             from .data import get_slice
             import pandas as pd
-            df     = get_slice(ticker, start, end, warmup=True)
+            df     = get_slice(ticker, start, end, warmup=True, source=args.source)
             trades = run_strategy(df, best_params,
                                   trade_start=pd.Timestamp(start) if start else None)
             if len(trades) >= 5:

@@ -2,6 +2,18 @@
 
 ---
 
+## [v1.8.0] – 2026-04-11
+
+### Feature: Python Backtest Datenquelle umschaltbar (yfinance/bybit)
+- `backtest.run` und `backtest.run_optimize` haben neues CLI-Flag `--source` mit `yfinance` (Default) oder `bybit`.
+- Neue Bybit-Integration in `backtest/data.py` via `ccxt` fuer BTCUSDT Perpetual (`BTC/USDT:USDT`) inklusive Caching.
+- Source-aware Caches und Ergebnisdateien, damit yfinance- und bybit-Runs getrennt bleiben.
+- Ziel-Workflow:
+  - Lange Historie/Parameterraum mit `--source yfinance`
+  - Aktuelle Baseline/Feintuning mit `--source bybit`
+
+---
+
 ## [v1.7.1] – 2026-04-11
 
 ### Fixes

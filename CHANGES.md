@@ -2,6 +2,45 @@
 
 ---
 
+## CHG-008 – Python Backtest mit Bybit-Perp Datenquelle
+
+| Feld | Inhalt |
+|---|---|
+| **ID** | CHG-008 |
+| **Status** | ✅ Abgeschlossen |
+| **Version** | v1.8.0 |
+| **Datum** | 2026-04-11 |
+| **Requested by** | User |
+
+### Change Request
+Backtest fuer Parameter-Justierung soll optional auf Bybit BTCUSDT Perpetual Daten laufen. Fuer lange Historie soll yfinance weiter verfuegbar bleiben.
+
+### Umsetzung
+- Data-Layer erweitert: `source`-Parameter (`yfinance`/`bybit`) in `get_all()`, `get_slice()`, `get_periods()`, `describe()`.
+- Bybit-Download via `ccxt.bybit().fetch_ohlcv()` in `backtest/data.py` mit Pagination und CSV-Cache.
+- CLI erweitert:
+  - `python -m backtest.run --source yfinance|bybit`
+  - `python -m backtest.run_optimize --source yfinance|bybit`
+- Optimizer-Pipeline source-aware gemacht (Perioden, Datenzugriff, Cross-Checks, Output-Dateien).
+- Dependency erweitert: `ccxt` in `backtest/requirements.txt`.
+
+### Test Cases
+
+| TC | Szenario | Erwartetes Resultat |
+|---|---|---|
+| TC-DB-01 | `get_periods("BTC-USD", source="yfinance")` | Periodenliste vorhanden, inkl. `2021_default` |
+| TC-DB-02 | `get_periods("BTC-USD", source="bybit")` | Periodenliste vorhanden (kuerzer), inkl. `2021_default` sofern Daten vorhanden |
+| TC-DB-03 | Bybit Smoke Test 1D OHLCV | Symbol `BTC/USDT:USDT` (swap, linear) wird geladen und liefert Kerzen |
+
+### Verifiziert
+- Smoke-Test erfolgreich: Bybit BTCUSDT Perp-Daten bis 2026-04-11 geladen.
+- Strategy-Schnelllauf auf Bybit-Datensatz ohne Fehler ausgefuehrt.
+
+### Abschluss
+Backtest kann jetzt fuer Langzeit-Optimierung mit yfinance und fuer aktuelle Baseline mit Bybit ausgefuehrt werden.
+
+---
+
 ## CHG-007 – Signal-Control Toggles auch in Anzeige/Test-Labels
 
 | Feld | Inhalt |

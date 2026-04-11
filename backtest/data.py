@@ -1,7 +1,7 @@
 """
-data.py – Download and cache OHLCV data via yfinance.
+data.py – Download and cache OHLCV data via yfinance or bybit.
 
-Caches as CSV per ticker in backtest/cache/.
+Caches as CSV per source+ticker in backtest/cache/.
 Re-downloads automatically if cache is > 1 day old.
 """
 
@@ -11,9 +11,15 @@ import pandas as pd
 from pathlib import Path
 from datetime import datetime, timedelta
 
+try:
+    import ccxt
+except ImportError:
+    ccxt = None
+
 BASE_DIR  = Path(__file__).parent
 CACHE_DIR = BASE_DIR / "cache"
 CACHE_DIR.mkdir(exist_ok=True)
+DATA_SOURCES = ("yfinance", "bybit")
 
 # Alias map: user-friendly name → yfinance symbol
 TICKER_MAP: dict[str, str] = {
@@ -56,9 +62,9 @@ def _yf_ticker(ticker: str) -> str:
     return TICKER_MAP.get(ticker.upper(), ticker)
 
 
-def _cache_path(yf_sym: str) -> Path:
-    safe = yf_sym.replace("-", "_").replace("/", "_")
-    return CACHE_DIR / f"{safe}.csv"
+def _cache_path(symbol: str, source: str = "yfinance") -> Path:
+    safe = symbol.replace("-", "_").replace("/", "_").replace(":", "_")
+    return CACHE_DIR / f"{source}_{safe}.csv"
 
 
 def _download_fresh(yf_sym: str) -> pd.DataFrame:
@@ -75,13 +81,90 @@ def _download_fresh(yf_sym: str) -> pd.DataFrame:
     return df
 
 
-def get_all(ticker: str, force_refresh: bool = False) -> pd.DataFrame:
+def _resolve_bybit_symbol(ticker: str, markets: dict) -> str:
+    t = ticker.upper()
+    preferred = {
+        "BTCUSDT": "BTC/USDT:USDT",
+        "BTC-USD": "BTC/USDT:USDT",
+        "BTC": "BTC/USDT:USDT",
+        "ETHUSDT": "ETH/USDT:USDT",
+        "ETH-USD": "ETH/USDT:USDT",
+        "ETH": "ETH/USDT:USDT",
+    }
+    fallback = {
+        "BTCUSDT": ["BTC/USDT", "BTCUSDT"],
+        "BTC-USD": ["BTC/USDT", "BTCUSDT"],
+        "BTC": ["BTC/USDT", "BTCUSDT"],
+        "ETHUSDT": ["ETH/USDT", "ETHUSDT"],
+        "ETH-USD": ["ETH/USDT", "ETHUSDT"],
+        "ETH": ["ETH/USDT", "ETHUSDT"],
+    }
+    if t in preferred and preferred[t] in markets:
+        return preferred[t]
+    for cand in fallback.get(t, []):
+        if cand in markets:
+            return cand
+
+    # Generic fallback: choose a linear swap if possible.
+    base = t.replace("-USD", "").replace("USDT", "")
+    for sym, meta in markets.items():
+        if base and base in sym and "USDT" in sym and meta.get("swap") and meta.get("linear"):
+            return sym
+    raise ValueError(f"No Bybit market mapping found for ticker '{ticker}'")
+
+
+def _download_fresh_bybit(ticker: str) -> pd.DataFrame:
+    if ccxt is None:
+        raise ImportError("ccxt is required for source='bybit'. Install with: pip install ccxt")
+
+    ex = ccxt.bybit({"enableRateLimit": True})
+    markets = ex.load_markets()
+    symbol = _resolve_bybit_symbol(ticker, markets)
+
+    tf = "1d"
+    day_ms = 24 * 60 * 60 * 1000
+    since = ex.parse8601("2010-01-01T00:00:00Z")
+    now_ms = ex.milliseconds()
+    rows = []
+
+    while since < now_ms:
+        chunk = ex.fetch_ohlcv(symbol, timeframe=tf, since=since, limit=1000)
+        if not chunk:
+            break
+        rows.extend(chunk)
+        last_ts = chunk[-1][0]
+        next_since = last_ts + day_ms
+        if next_since <= since:
+            break
+        since = next_since
+        if len(chunk) < 1000:
+            break
+
+    if not rows:
+        raise ValueError(f"No data returned for Bybit {symbol}")
+
+    df = pd.DataFrame(rows, columns=["timestamp", "open", "high", "low", "close", "volume"])
+    df["date"] = pd.to_datetime(df["timestamp"], unit="ms", utc=True).dt.tz_localize(None)
+    df = df.drop(columns=["timestamp"]).set_index("date").sort_index()
+    df = df[~df.index.duplicated(keep="last")]
+    df.index.name = "date"
+    return df
+
+
+def get_all(ticker: str, force_refresh: bool = False, source: str = "yfinance") -> pd.DataFrame:
     """
     Return full history DataFrame (open/high/low/close/volume).
     Uses on-disk cache; refreshes if > 23h old or force_refresh=True.
     """
-    yf_sym = _yf_ticker(ticker)
-    cache  = _cache_path(yf_sym)
+    if source not in DATA_SOURCES:
+        raise ValueError(f"Unknown source '{source}'. Valid: {DATA_SOURCES}")
+
+    if source == "yfinance":
+        cache_symbol = _yf_ticker(ticker)
+    else:
+        cache_symbol = ticker.upper()
+
+    cache  = _cache_path(cache_symbol, source=source)
 
     if cache.exists() and not force_refresh:
         age = datetime.now() - datetime.fromtimestamp(cache.stat().st_mtime)
@@ -89,7 +172,10 @@ def get_all(ticker: str, force_refresh: bool = False) -> pd.DataFrame:
             df = pd.read_csv(cache, index_col="date", parse_dates=True)
             return df
 
-    df = _download_fresh(yf_sym)
+    if source == "yfinance":
+        df = _download_fresh(_yf_ticker(ticker))
+    else:
+        df = _download_fresh_bybit(ticker)
     df.to_csv(cache)
     return df
 
@@ -98,7 +184,8 @@ def get_slice(ticker: str,
               start: str | None = None,
               end:   str | None = None,
               force_refresh: bool = False,
-              warmup: bool = False) -> pd.DataFrame:
+              warmup: bool = False,
+              source: str = "yfinance") -> pd.DataFrame:
     """
     Return OHLCV slice filtered by [start, end].
     Dates are ISO strings "YYYY-MM-DD" or None.
@@ -110,7 +197,7 @@ def get_slice(ticker: str,
                    are recorded.  Mirrors TradingView behaviour where the main
                    state machine runs from bar 0 before the backtest window.
     """
-    df = get_all(ticker, force_refresh=force_refresh)
+    df = get_all(ticker, force_refresh=force_refresh, source=source)
     if start and not warmup:
         df = df[df.index >= pd.Timestamp(start)]
     if end:
@@ -118,12 +205,12 @@ def get_slice(ticker: str,
     return df.copy()
 
 
-def get_periods(ticker: str) -> dict[str, tuple[str, str]]:
+def get_periods(ticker: str, source: str = "yfinance") -> dict[str, tuple[str, str]]:
     """
     Return all PERIODS that have data for this ticker,
     with actual start/end dates filled in.
     """
-    df = get_all(ticker)
+    df = get_all(ticker, source=source)
     first = df.index[0].strftime("%Y-%m-%d")
     last  = df.index[-1].strftime("%Y-%m-%d")
 
@@ -152,17 +239,21 @@ def get_periods(ticker: str) -> dict[str, tuple[str, str]]:
     return result
 
 
-def describe(ticker: str) -> None:
+def describe(ticker: str, source: str = "yfinance") -> None:
     """Print a summary of available data for a ticker."""
-    df = get_all(ticker)
+    df = get_all(ticker, source=source)
     print(f"\n{'='*50}")
-    print(f"  {_yf_ticker(ticker)}")
+    if source == "yfinance":
+        shown_symbol = _yf_ticker(ticker)
+    else:
+        shown_symbol = ticker.upper()
+    print(f"  {shown_symbol} [{source}]")
     print(f"  Bars:  {len(df)}")
     print(f"  From:  {df.index[0].date()}")
     print(f"  To:    {df.index[-1].date()}")
     print(f"  Close: {df['close'].iloc[-1]:.2f}")
     print(f"{'='*50}")
-    for name, (s, e) in get_periods(ticker).items():
+    for name, (s, e) in get_periods(ticker, source=source).items():
         sub = df[(df.index >= pd.Timestamp(s)) & (df.index <= pd.Timestamp(e))]
         print(f"  {name:<22} {s} → {e}  ({len(sub)} bars)")
 

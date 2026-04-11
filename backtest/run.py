@@ -22,6 +22,8 @@ from .ticker_config import get_ticker_params
 def main() -> None:
     parser = argparse.ArgumentParser(description="AMB single backtest run")
     parser.add_argument("--ticker",   default="BTC-USD", help="Ticker symbol")
+    parser.add_argument("--source",   default="yfinance", choices=["yfinance", "bybit"],
+                        help="Data source")
     parser.add_argument("--period",   default="2021_default",
                         help="Period name or 'custom'")
     parser.add_argument("--start",    default=None, help="Custom start YYYY-MM-DD")
@@ -52,7 +54,7 @@ def main() -> None:
         start = args.start
         end   = args.end
     else:
-        periods = get_periods(args.ticker)
+        periods = get_periods(args.ticker, source=args.source)
         if args.period not in periods:
             available = list(periods.keys())
             print(f"Period '{args.period}' not found. Available: {available}")
@@ -90,11 +92,12 @@ def main() -> None:
     )
 
     # ── Load data (full history for MA warmup; trades filtered by start) ──
-    df = get_slice(args.ticker, start, end, force_refresh=args.refresh, warmup=True)
+    df = get_slice(args.ticker, start, end, force_refresh=args.refresh, warmup=True, source=args.source)
     n_window = len(df[df.index >= pd.Timestamp(start)]) if start else len(df)
     console.print(
         f"\n[bold]AMB Backtest[/bold]  "
         f"[cyan]{args.ticker}[/cyan]  "
+        f"[magenta]{args.source}[/magenta]  "
         f"[yellow]{args.period}[/yellow]  "
         f"{start} -> {end}  ({n_window} bars)"
     )
