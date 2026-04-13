@@ -1,5 +1,5 @@
 //@version=6
-indicator("AMB Dual MA Signal v1", overlay=true)
+indicator("AMB Dual MA Signal v1", overlay=true, max_labels_count=500)
 
 // ═══════════════════════════════════════════════════════════════════════
 // INPUTS: Slow MA (Trend Filter – First Entry Trigger)
@@ -142,7 +142,7 @@ exitLong_A  = useFastMA and position_open and lastSignalDirection == 1 and longA
 // CL Exit B: Slow MA crossed downward – always triggers exit regardless of Fast MA state
 exitLong_B  = position_open and lastSignalDirection == 1 and cross_below_slowMA
 
-// CL Exit SL: Stop Loss – intrabar low touches/breaks SL level (no flip)
+// CL Exit SL: Stop Loss – Intrabar-Low prueft SL-Level (no flip)
 sl_long_level  = sl_enable and position_open and lastSignalDirection == 1  and not na(ep_for_sl_trigger) ? ep_for_sl_trigger * (1.0 - sl_risk_pct / (100.0 * leverageLong)) : float(na)
 exitLong_SL    = not na(sl_long_level) and low <= sl_long_level
 
@@ -161,7 +161,7 @@ exitShort_A  = useFastMA and position_open and lastSignalDirection == -1 and sho
 // CS Exit B: Slow MA crossed upward – always triggers exit regardless of Fast MA state
 exitShort_B  = position_open and lastSignalDirection == -1 and cross_above_slowMA
 
-// CS Exit SL: Stop Loss – intrabar high touches/breaks SL level (no flip)
+// CS Exit SL: Stop Loss – Intrabar-High prueft SL-Level (no flip)
 sl_short_level = sl_enable and position_open and lastSignalDirection == -1 and not na(ep_for_sl_trigger) ? ep_for_sl_trigger * (1.0 + sl_risk_pct / (100.0 * leverageShort)) : float(na)
 exitShort_SL   = not na(sl_short_level) and high >= sl_short_level
 
