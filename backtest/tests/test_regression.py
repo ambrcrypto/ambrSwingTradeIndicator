@@ -22,12 +22,11 @@ import pytest
 
 from backtest.data import get_slice
 from backtest.engine import compute_metrics
-from backtest.strategy_amb import run_strategy
-from backtest.ticker_config import TICKER_CONFIG
+from backtest.strategy_amb import AMBParams, run_strategy
 
-# ── Referenzwerte (v1.6.1, BTC-USD, 2021-04-14 → 2023-10-31) ────────────────
+# ── Historische Referenzwerte (v1.6.1, BTC-USD, 2021-04-14 → 2023-10-31) ───
 # Ermittelt mit diagnose_discrepancy.py am 2026-04-06.
-# Konfiguration: SMA130/SMA44 / LL3.0 / LS0.5 / SL6%
+# Fixe Test-Konfiguration: SMA130/SMA44 / LL3.0 / LS0.5 / SL6%
 REF_TRADE_COUNT = 42
 REF_PL_PCT      = 145.53   # ±2% Toleranz (rel)
 REF_MAX_DD      = 32.33    # ±5% Toleranz (rel)
@@ -35,12 +34,26 @@ REF_MAX_DD      = 32.33    # ±5% Toleranz (rel)
 PERIOD_START = "2021-04-14"
 PERIOD_END   = "2023-10-31"
 TICKER       = "BTC-USD"
+HISTORICAL_PARAMS = AMBParams(
+    slow_ma_len=130,
+    slow_ma_type="SMA",
+    fast_ma_len=44,
+    fast_ma_type="SMA",
+    use_fast_ma=True,
+    allow_longs=True,
+    allow_shorts=True,
+    leverage_long=3.0,
+    leverage_short=0.5,
+    sl_enable=True,
+    sl_risk_pct=6.0,
+    signal_tf="D",
+)
 
 
 @pytest.fixture(scope="module")
 def btc_trades():
     """Einmaliger Backtest-Run für alle Tests in diesem Modul."""
-    params      = TICKER_CONFIG[TICKER]
+    params      = HISTORICAL_PARAMS
     df_full     = get_slice(TICKER, warmup=True)
     end_ts      = pd.Timestamp(PERIOD_END)
     df_cut      = df_full[df_full.index <= end_ts].copy()
@@ -51,7 +64,7 @@ def btc_trades():
 
 @pytest.fixture(scope="module")
 def btc_metrics(btc_trades):
-    params = TICKER_CONFIG[TICKER]
+    params = HISTORICAL_PARAMS
     return compute_metrics(btc_trades, params, PERIOD_START, PERIOD_END)
 
 

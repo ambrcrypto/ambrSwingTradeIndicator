@@ -53,7 +53,7 @@ Der Vergleich war aus zwei Gründen ungültig:
 
 **1. Falsche Konfiguration:** Das alte Dokument verwendete `SMA(100)` — die aktuelle Live-Konfiguration ist `SMA(130)`. Ein direkter Vergleich 45 vs 79 ist damit keine Aussage über v1.6.1.
 
-**2. Kein Strategy Tester möglich:** `ambTradeSignalIndicator.pine` ist ein **Indicator** (kein Strategy-Script). TradingView hat keinen eingebauten Trade-Counter für Indicators. Die "79 Trades" konnten nicht von TradingView's Strategy Tester stammen — sie wurden manuell oder aus einer früheren Script-Version mit anderen Parametern gezählt.
+**2. Kein Strategy Tester möglich:** `AMB Dual MA Signal.pine` ist ein **Indicator** (kein Strategy-Script). TradingView hat keinen eingebauten Trade-Counter für Indicators. Die "79 Trades" konnten nicht von TradingView's Strategy Tester stammen — sie wurden manuell oder aus einer früheren Script-Version mit anderen Parametern gezählt.
 
 ### Aktueller Stand v1.6.1 (Python, 2026-04-06)
 
@@ -111,7 +111,7 @@ Python berechnet identisch mit `pd.Series.rolling(130).mean()`.
 
 | Komponente | Pine Script | Python |
 |-----------|-------------|--------|
-| Crossover-Variablen | `ambTradeSignalIndicator.pine`, Zeilen ~130–142 | `strategy_amb.py`, `run_strategy()`, Crossovers-Block |
+| Crossover-Variablen | `AMB Dual MA Signal.pine`, Zeilen ~130–142 | `strategy_amb.py`, `run_strategy()`, Crossovers-Block |
 | Signal-Conditions | `.pine` Zeilen ~145–185 | `strategy_amb.py`, Entry/Exit conditions |
 | State Machine | `.pine` Zeilen ~190–260 | `strategy_amb.py`, State Machine Block |
 | SL-Kalkulation | `.pine` Zeile ~160–162 | `strategy_amb.py`, `sl_long_level` / `sl_short_level` |

@@ -1,0 +1,16 @@
+[Unit]
+Description=AMB TradingView Webhook Bot
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/ambbot
+ExecStart=/opt/ambbot/.venv/bin/uvicorn main:app --host 127.0.0.1 --port 8080
+Restart=always
+RestartSec=5
+User=www-data
+Group=www-data
+EnvironmentFile=/opt/ambbot/.env
+
+[Install]
+WantedBy=multi-user.target

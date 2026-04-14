@@ -1,7 +1,7 @@
 """
 strategy_amb.py – AMB Dual MA Signal strategy logic.
 
-1:1 mirror of ambTradeSignalIndicator.pine (v1.5).
+1:1 mirror of AMB Dual MA Signal.pine.
 Signal rules, state machine, SL logic all faithfully reproduced.
 
 Returns a list of Trade objects from run_strategy().
@@ -21,15 +21,15 @@ from dataclasses import dataclass, field
 class AMBParams:
     slow_ma_len:    int   = 130
     slow_ma_type:   str   = "EMA"   # "SMA" | "EMA"
-    fast_ma_len:    int   = 44
+    fast_ma_len:    int   = 60
     fast_ma_type:   str   = "SMA"   # "SMA" | "EMA"
     allow_longs:    bool  = True
     allow_shorts:   bool  = True
     use_fast_ma:    bool  = True    # False = Slow MA only (no re-entry, no fast-exit)
-    leverage_long:  float = 3.0
-    leverage_short: float = 1.0
+    leverage_long:  float = 3.75
+    leverage_short: float = 0.5
     sl_enable:      bool  = True
-    sl_risk_pct:    float = 8.0     # max capital loss % per trade (% SL mode)
+    sl_risk_pct:    float = 3.0     # max capital loss % per trade (% SL mode)
     # ATR-based SL (overrides sl_enable when True)
     atr_sl_enable:  bool  = False
     atr_sl_len:     int   = 14      # ATR period (Wilder's RMA, same as Pine ta.atr)

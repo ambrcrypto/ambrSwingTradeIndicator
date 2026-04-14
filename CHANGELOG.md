@@ -2,6 +2,76 @@
 
 ---
 
+## [v1.8.5] – 2026-04-14
+
+### Änderung: Rollierende 6M-Review-Baseline aktiviert
+- Backtest-Start im Pine-Default auf 2025-04-01 gesetzt, damit das aktuelle Review-Fenster genau den letzten 12 Monaten vor dem Checkpoint entspricht.
+- Neue Standardwerte im Pine-Indikator und Python-Default:
+  - Slow MA: EMA 130
+  - Fast MA: SMA 60
+  - Long Leverage: 3.75x
+  - Short Leverage: 0.5x
+  - Stop Loss: 3.0%
+- Verifiziert auf Bybit BTCUSD für das aktuelle Rollfenster 2025-04-01 bis 2026-04-13:
+  - neuer Default: +147.50% bei 9.46% MaxDD
+- Health-Monitor-Schwellwerte an das rollierende 1-Jahres-Fenster angepasst.
+- Review-Regel dokumentiert: alle 6 Monate prüfen, jeweils mit den Daten der letzten 12 Monate, Default nur bei besserem Kandidaten neu setzen.
+
+---
+
+## [v1.8.4] – 2026-04-14
+
+### Änderung: Walk-forward bestätigte BTCUSD-Live-Baseline übernommen
+- Neue Standardwerte im Pine-Indikator und Python-Default:
+  - Slow MA: EMA 130
+  - Fast MA: SMA 60
+  - Long Leverage: 4.0x
+  - Short Leverage: 0.5x
+  - Stop Loss: 4.0%
+- Verifizierung auf Bybit BTCUSD ab 2022-11-21 bis 2026-04-13:
+  - bisheriger Default: +2418.47% bei 28.67% MaxDD
+  - neue Baseline: +3762.59% bei 40.41% MaxDD
+- Health-Monitor-Schwellwerte auf die neue Live-Baseline kalibriert.
+- Veraltete Explorationsdateien und Ergebnisartefakte aus Seilbahn-/Challenger-Tests bereinigt.
+
+---
+
+## [v1.8.3] – 2026-04-14
+
+### Änderung: BTCUSD-Default auf verifizierten Sieger ab 2022-11-21 gesetzt
+- Baseline-Referenz für Vergleiche explizit auf BTCUSD ab dem fixen Startdatum 2022-11-21 festgelegt.
+- Neue Standardwerte im Pine-Indikator:
+  - Slow MA: EMA 100
+  - Fast MA: SMA 52
+  - Long Leverage: 3.75x
+  - Short Leverage: 0.5x
+  - Stop Loss: 3.0%
+- Verifizierung auf Bybit BTCUSD ab 2022-11-21:
+  - alte Baseline: +2135.42% bei 31.89% MaxDD
+  - neuer Default: +2418.47% bei 28.67% MaxDD
+- Health-Monitor-Kommentar und Default-Schwellen an die neue BTCUSD-Referenz angepasst.
+
+---
+
+## [v1.8.2] – 2026-04-11
+
+### Feature: Hostinger Automation Scaffold (Webhook -> Bybit)
+- Neues Verzeichnis `automation/` mit minimalem Python Webhook-Bot fuer TradingView Alerts.
+- Sichere Basis integriert: Secret-Pruefung, Idempotenz (SQLite), Dry-Run Default und Health-Endpoint.
+- Hostinger-Betrieb vorbereitet mit systemd Service-Template und detaillierter Setup-Anleitung.
+- Ziel: stabile, wartungsarme Automatisierung ohne Eingriff in Pine-Strategielogik.
+
+---
+
+## [v1.8.1] – 2026-04-11
+
+### Änderung: Stop Loss Trigger auf Kerzenschluss umgestellt
+- Pine-Logik: `exitLong_SL` / `exitShort_SL` pruefen jetzt auf `close` statt intrabar `low/high`.
+- Python-Mirror (`backtest/strategy_amb.py`) identisch umgestellt fuer 1:1 Paritaet zu TradingView.
+- Grundlage: Bybit-Vergleich (2022-11-21 bis live, aktuelle Default-Parameter) zeigte klare Verbesserung bei Return, PF, Expectancy und MaxDD.
+
+---
+
 ## [v1.8.0] – 2026-04-11
 
 ### Feature: Python Backtest Datenquelle umschaltbar (yfinance/bybit)
@@ -116,7 +186,7 @@
 ## [v1.0] – 2026-04-02
 
 ### Indikator-Name
-`AMB Dual MA Signal v1`
+`AMB Dual MA Signal`
 
 ### Neue Features
 - Dual-MA-Logik: Slow MA (Trendfilter/Entry) + Fast MA (Exit/Re-Entry)

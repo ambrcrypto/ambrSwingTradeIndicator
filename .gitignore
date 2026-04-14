@@ -8,3 +8,8 @@ backtest/cache/
 
 # Result output files (keep in git if desired, but often large)
 # backtest/results/
+
+# Automation bot local secrets/state
+automation/.env
+automation/state/
+

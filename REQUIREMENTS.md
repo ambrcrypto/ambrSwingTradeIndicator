@@ -100,7 +100,7 @@ Der Health Monitor im Dashboard zeigt permanent ob die Strategie noch innerhalb 
 
 Nächste Pflichtrevision: **2026-10-01**
 
-**Wichtig:** Das Baseline-Startdatum bleibt zwischen Revisionen **fix** (aktuell 2022-11-21). Es wird **nicht** automatisch alle 6 Monate um +6 Monate verschoben.
+**Wichtig:** Das Review-Fenster ist jetzt **rollierend**. Zum jeweiligen Checkpoint wird das Backtest-Startdatum genau **1 Jahr zurück** gesetzt. Beispiel: Review am 2026-04-01 ⇒ Startdatum 2025-04-01.
 
 ### Revisionsdurchführung
 
@@ -115,19 +115,22 @@ Nächste Pflichtrevision: **2026-10-01**
 
 ### Baseline-Aktualisierung nach Parameteranpassung
 
-1. **Pine Script:** `bt_start_year/month/day` auf Datum der Anpassung setzen
-2. **Pine Script:** `hm_min_exp`, `hm_min_win`, `hm_max_dd`, `hm_max_sl_rate` auf neue Baseline-KPIs kalibrieren (ca. 50% des Baseline-Werts als Warnschwelle)
-3. **Kommentar** im Inputs-Block aktualisieren: `// Baseline vX.Y (ab YYYY-MM-DD): ...`
-4. CHANGELOG + CHANGES aktualisieren, git commit
+1. **Checkpoint festlegen:** jeweils 1. April und 1. Oktober
+2. **Pine Script:** `bt_start_year/month/day` auf genau **1 Jahr vor dem Checkpoint** setzen
+3. **Backtest:** Optimierung mit den letzten 12 Monaten durchführen
+4. **Default nur ändern**, wenn der neue Kandidat im Review klar besser bestätigt ist
+5. **Health-Monitor:** `hm_min_exp`, `hm_min_win`, `hm_max_dd`, `hm_max_sl_rate` auf die neue Rolling-Baseline kalibrieren
+6. **Kommentar** im Inputs-Block aktualisieren
+7. CHANGELOG + CHANGES aktualisieren, git commit
 
-### Aktuelle Baseline (v1.7.0, ab 2022-11-21, BTC/USD)
+### Aktuelle Rolling-Baseline (v1.8.5, Review-Fenster 2025-04-01 → live, BTC/USD)
 
 | KPI | Baseline-Wert | Warnschwelle (Health Monitor) |
 |---|---|---|
-| Expectancy | 8.28% | < 3.0% |
-| Win Rate | 25% | < 15% |
-| MaxDD | 31.89% | > 55% |
-| SL Rate | ~27% | > 50% |
+| Expectancy | 6.83% | < 3.5% |
+| Win Rate | 43.75% | < 20% |
+| MaxDD | 9.46% | > 20% |
+| SL Rate | 18.8% | > 40% |
 
 ---
 
@@ -164,15 +167,15 @@ Alle Changes werden in `CHANGES.md` mit eindeutiger ID (CHG-XXX) verwaltet.
 
 ---
 
-## Default-Parameter (BTC/USD 1D, Live v1.7.0)
+## Default-Parameter (BTC/USD 1D, Live v1.8.5)
 
-_Aktualisiert v1.7.0 – aktuelle Live-Konfiguration mit Health Monitor_
+_Aktualisiert v1.8.5 – rollierender Review-Stand mit 1Y-Lookback_
 
 | Parameter        | Wert                    |
 |------------------|-------------------------|
-| Slow MA          | 130 **SMA**, Daily      |
-| Fast MA          | **44 SMA**, Daily       |
-| Leverage Long    | **3.0x**                |
+| Slow MA          | 130 **EMA**, Daily      |
+| Fast MA          | **60 SMA**, Daily       |
+| Leverage Long    | **3.75x**               |
 | Leverage Short   | **0.5x**                |
-| Stop Loss        | **6.0%** (Max Risk)     |
-| Backtest Start   | **2022-11-21** (Baseline fix) |
+| Stop Loss        | **3.0%** (Max Risk)     |
+| Backtest Start   | **2025-04-01** (1Y vor Checkpoint 2026-04-01) |

@@ -2,6 +2,107 @@
 
 ---
 
+## CHG-011 – Rollierende 6M-Review mit 1Y-Lookback als neuer Default-Prozess
+
+| Feld | Inhalt |
+|---|---|
+| **ID** | CHG-011 |
+| **Status** | ✅ Abgeschlossen |
+| **Version** | v1.8.5 |
+| **Datum** | 2026-04-14 |
+| **Requested by** | User |
+
+### Change Request
+Das Backtesting-Startdatum soll auf 2025-04-01 gesetzt werden, damit der Testbereich immer exakt ein Jahr vor dem aktuellen Review-Checkpoint beginnt. Alle 6 Monate erfolgt eine neue Prüfung; der Default wird nur bei Bedarf ersetzt.
+
+### Umsetzung
+- Pine-Backtest-Start auf 2025-04-01 umgestellt.
+- Default-Kandidat für den aktuellen Review-Zyklus gesetzt auf:
+  - Slow MA = EMA 130
+  - Fast MA = SMA 60
+  - Long Leverage = 3.75x
+  - Short Leverage = 0.5x
+  - Stop Loss = 3.0%
+- Health-Monitor und Anforderungen an das rollierende 1-Jahres-Fenster angepasst.
+
+### Verifiziert
+Bybit BTCUSD, Rollfenster 2025-04-01 bis 2026-04-13:
+- aktueller Default: +147.50%, MaxDD 9.46%, 16 Trades
+- Win Rate 43.75%, Expectancy 6.83%, SL-Rate 18.8%
+
+### Abschluss
+Die Strategie folgt jetzt dem gewünschten Wartungsprozess: alle 6 Monate Review mit 1Y-Lookback und nur dann Baseline-Reset, wenn ein stärkerer Kandidat bestätigt wird.
+
+---
+
+## CHG-010 – Neue Live-Baseline aus Walk-Forward-BTC-Backtest
+
+| Feld | Inhalt |
+|---|---|
+| **ID** | CHG-010 |
+| **Status** | ✅ Abgeschlossen |
+| **Version** | v1.8.4 |
+| **Datum** | 2026-04-14 |
+| **Requested by** | User |
+
+### Change Request
+Die aktuell besten verifizierten Werte aus dem jüngsten BTC-Backtest sollen als neue Baseline übernommen werden. Dokumentation und Projektstand sollen bereinigt werden.
+
+### Umsetzung
+- Default-Parameter in [AMB Dual MA Signal.pine](AMB%20Dual%20MA%20Signal.pine) und in der Python-Ticker-Konfiguration auf die neue Live-Baseline gesetzt:
+  - Slow MA = EMA 130
+  - Fast MA = SMA 60
+  - Long Leverage = 4.0x
+  - Short Leverage = 0.5x
+  - Stop Loss = 4.0%
+- Health-Monitor-Kommentar und Warnschwellen auf den neuen Referenzstand kalibriert.
+- Historischer Regressionstest von den Live-Defaults entkoppelt.
+- Nicht mehr benötigte Explorationsdateien aus den Seilbahn-/Challenger-Versuchen entfernt.
+
+### Verifiziert
+Bybit BTCUSD, Zeitraum 2022-11-21 bis 2026-04-13:
+- bisheriger Default: +2418.47%, MaxDD 28.67%, 64 Trades
+- neue Baseline: +3762.59%, MaxDD 40.41%, 53 Trades
+- Zusatz-KPIs neue Baseline: Win Rate 22.64%, Expectancy 11.82%, SL-Rate 45.3%
+
+### Abschluss
+Der Indikator und die Backtest-Defaults laufen jetzt wieder auf einem einheitlichen, aktuellen und dokumentierten Baseline-Stand.
+
+---
+
+## CHG-009 – BTCUSD-Baseline ab 2022 als verbindliche Referenz
+
+| Feld | Inhalt |
+|---|---|
+| **ID** | CHG-009 |
+| **Status** | ✅ Abgeschlossen |
+| **Version** | v1.8.3 |
+| **Datum** | 2026-04-14 |
+| **Requested by** | User |
+
+### Change Request
+Als Baseline gilt BTCUSD nach dem fixen Startdatum in 2022. Die Standardkonfiguration soll auf die verifizierte stärkere Variante umgestellt werden.
+
+### Umsetzung
+- Default-Parameter in [AMB Dual MA Signal.pine](AMB%20Dual%20MA%20Signal.pine) auf den verifizierten Sieger gesetzt:
+  - Slow MA = EMA 100
+  - Fast MA = SMA 52
+  - Long Leverage = 3.75x
+  - Short Leverage = 0.5x
+  - Stop Loss = 3.0%
+- Health-Monitor-Kommentar auf BTCUSD ab 2022-11-21 umgestellt.
+- Warnschwellen an die neue Referenz angepasst.
+
+### Verifiziert
+Bybit BTCUSD, Zeitraum 2022-11-21 bis aktuell:
+- alte Baseline: +2135.42%, MaxDD 31.89%, 64 Trades
+- neuer Default: +2418.47%, MaxDD 28.67%, 64 Trades
+
+### Abschluss
+Die Baseline-Definition ist jetzt eindeutig festgelegt und der Indikator nutzt standardmässig die bessere BTCUSD-Variante.
+
+---
+
 ## CHG-008 – Python Backtest mit Bybit-Perp Datenquelle
 
 | Feld | Inhalt |

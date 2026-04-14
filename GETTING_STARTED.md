@@ -174,13 +174,13 @@ python -m backtest.run_optimize --ticker MEIN-TICKER --mode quick --robustness
 
 ## 9. TradingView-Indikator einrichten
 
-1. `ambTradeSignalIndicator.pine` in TradingView Pine Editor einfügen
+1. `AMB Dual MA Signal.pine` in TradingView Pine Editor einfügen
 2. Chart: **BTC-USD Daily**
 3. Inputs gemäss `ticker_config.py` einstellen:
-   - Slow MA: SMA, 130
-   - Fast MA: SMA, 44
-   - Leverage Long: 3.0, Short: 0.5
-   - Stop Loss: 6.0%
+   - Slow MA: EMA, 130
+   - Fast MA: SMA, 60
+   - Leverage Long: 3.75, Short: 0.5
+   - Stop Loss: 3.0%
 4. **4 Alerts anlegen** (je eine Condition):
    - `ENTER LONG` → Alert bei Signal
    - `EXIT LONG`
@@ -194,7 +194,7 @@ python -m backtest.run_optimize --ticker MEIN-TICKER --mode quick --robustness
 
 ```
 ambrSwingTradeIndicator/
-├── ambTradeSignalIndicator.pine   ← Live TradingView Indikator
+├── AMB Dual MA Signal.pine        ← Live TradingView Indikator
 ├── CHANGELOG.md                   ← Versionshistorie
 ├── CHANGES.md                     ← Formale Change Requests (CHG-001 ff.)
 ├── REQUIREMENTS.md                ← Strategieregeln + Change-Prozess
