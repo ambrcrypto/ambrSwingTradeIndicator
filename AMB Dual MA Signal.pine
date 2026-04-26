@@ -314,9 +314,11 @@ var table   stats_tbl          = table.new(position.bottom_left, 4, 5)
 var bool    window_initialized = false
 var float[] trade_percs        = array.new_float()
 var label   live_trade_lbl     = na
+trade_closed_this_bar = false
 
 if backtest_enable
     trade_pct = 0.0
+    trade_closed_this_bar := false
 
     if in_window and not window_initialized
         bt_position_open   := false
@@ -330,43 +332,47 @@ if backtest_enable
         window_initialized := false
 
     if in_window
-        // ── 1. EXITS first (mirrors main state machine – enables flip on same bar) ──
-        if exitLong and bt_position_open and bt_position_type == 1
-            if exitLong_SL
-                trade_pct := -sl_risk_pct
-            else
-                trade_pct := ((close - bt_entry_price) / bt_entry_price * 100.0) * leverageLong
-            array.push(trade_percs, trade_pct)
-            trades += 1
-            create_trade_label(trade_pct)
-            bt_position_open := false
-            bt_position_type := 0
-            bt_entry_price   := na
+        // State changes only on confirmed bars – prevents repainting on live (unconfirmed) bars
+        if barstate.isconfirmed
+            // ── 1. EXITS first (mirrors main state machine – enables flip on same bar) ──
+            if exitLong and bt_position_open and bt_position_type == 1
+                if exitLong_SL
+                    trade_pct := -sl_risk_pct
+                else
+                    trade_pct := ((close - bt_entry_price) / bt_entry_price * 100.0) * leverageLong
+                array.push(trade_percs, trade_pct)
+                trades += 1
+                create_trade_label(trade_pct)
+                trade_closed_this_bar := true
+                bt_position_open := false
+                bt_position_type := 0
+                bt_entry_price   := na
 
-        if exitShort and bt_position_open and bt_position_type == -1
-            if exitShort_SL
-                trade_pct := -sl_risk_pct
-            else
-                trade_pct := ((bt_entry_price - close) / bt_entry_price * 100.0) * leverageShort
-            array.push(trade_percs, trade_pct)
-            trades += 1
-            create_trade_label(trade_pct)
-            bt_position_open := false
-            bt_position_type := 0
-            bt_entry_price   := na
+            if exitShort and bt_position_open and bt_position_type == -1
+                if exitShort_SL
+                    trade_pct := -sl_risk_pct
+                else
+                    trade_pct := ((bt_entry_price - close) / bt_entry_price * 100.0) * leverageShort
+                array.push(trade_percs, trade_pct)
+                trades += 1
+                create_trade_label(trade_pct)
+                trade_closed_this_bar := true
+                bt_position_open := false
+                bt_position_type := 0
+                bt_entry_price   := na
 
-        // ── 2. ENTRIES second (position is now free after any exit/flip) ──────────
-        if longSignal and not bt_position_open
-            bt_entry_price   := close   // Backtest immer mit Kerzenschluss (manual_ep nur für Chart-Anzeige)
-            bt_position_type := 1
-            bt_position_open := true
+            // ── 2. ENTRIES second (position is now free after any exit/flip) ──────────
+            if longSignal and not bt_position_open
+                bt_entry_price   := close   // Backtest immer mit Kerzenschluss (manual_ep nur für Chart-Anzeige)
+                bt_position_type := 1
+                bt_position_open := true
 
-        if shortSignal and not bt_position_open
-            bt_entry_price   := close   // Backtest immer mit Kerzenschluss (manual_ep nur für Chart-Anzeige)
-            bt_position_type := -1
-            bt_position_open := true
+            if shortSignal and not bt_position_open
+                bt_entry_price   := close   // Backtest immer mit Kerzenschluss (manual_ep nur für Chart-Anzeige)
+                bt_position_type := -1
+                bt_position_open := true
 
-    if not in_window and not na(sim_end_ts) and time > sim_end_ts and bt_position_open
+    if not in_window and not na(sim_end_ts) and time > sim_end_ts and bt_position_open and barstate.isconfirmed
         if bt_position_type == 1
             trade_pct := ((close - bt_entry_price) / bt_entry_price * 100.0) * leverageLong
         else
@@ -374,6 +380,7 @@ if backtest_enable
         array.push(trade_percs, trade_pct)
         trades += 1
         create_trade_label(trade_pct)
+        trade_closed_this_bar := true
         bt_position_open := false
         bt_position_type := 0
         bt_entry_price   := na
@@ -473,15 +480,19 @@ if backtest_enable and not bt_use_end_date
     if not na(live_trade_lbl)
         label.delete(live_trade_lbl)
         live_trade_lbl := na
+    // Live label: always below the current bar so it never overlaps with
+    // closed-trade labels (which are always abovebar). Blue colour makes it
+    // clearly distinguishable from the green/red performance labels.
     if bt_position_open
-        live_lbl_text  = (display_unrealized >= 0 ? "+" : "") + str.tostring(display_unrealized, "#.##") + "%"
-        live_lbl_color = display_unrealized >= 0 ? color.green : color.red
+        live_dir_pfx  = bt_position_type == 1 ? "▲ " : "▼ "
+        live_lbl_text = live_dir_pfx + "LIVE " + (display_unrealized >= 0 ? "+" : "") + str.tostring(display_unrealized, "#.##") + "%"
         live_trade_lbl := label.new(bar_index, close,
                                     text=live_lbl_text,
-                                    yloc=yloc.abovebar,
-                                    color=live_lbl_color,
-                                    style=label.style_label_down,
-                                    textcolor=color.white)
+                                    yloc=yloc.belowbar,
+                                    color=color.new(#1565C0, 0),
+                                    style=label.style_label_up,
+                                    textcolor=color.white,
+                                    size=size.small)
 
 // ═══════════════════════════════════════════════════════════════════════
 // DISPLAY: Stats table (fixed – no recreation on every bar)
