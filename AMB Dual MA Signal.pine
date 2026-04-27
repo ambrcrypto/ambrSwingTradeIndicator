@@ -98,7 +98,7 @@ var bool  position_open       = false
 var bool  longAboveFastMA     = false  // true = price has closed above Fast MA during current long
 var bool  shortBelowFastMA    = false  // true = price has closed below Fast MA during current short
 var float entry_price         = na     // eff_ep (manual oder close) – nur für visuelle EP/SL-Linie
-var float ep_for_sl_trigger   = na     // immer close des Signal-Bars – für SL-Trigger-Berechnung
+var float ep_for_sl_trigger   = na     // eff_ep (manual oder close) – für SL-Trigger-Berechnung
 var line  current_entry_line  = na
 var label current_entry_label = na
 var line  sl_line_obj         = na
@@ -209,7 +209,7 @@ if longSignal and barstate.isconfirmed
     lastSignalDirection := 1
     position_open       := true
     entry_price         := eff_ep          // visuelle EP/SL-Linie
-    ep_for_sl_trigger   := close           // SL-Trigger immer auf Kerzenschluss-Basis
+    ep_for_sl_trigger   := use_manual_ep and manual_ep_val > 0 ? manual_ep_val : close
     longAboveFastMA     := close > fastMA_value
     if not na(current_entry_line)
         line.delete(current_entry_line)
@@ -243,7 +243,7 @@ else if shortSignal and barstate.isconfirmed
     lastSignalDirection := -1
     position_open       := true
     entry_price         := eff_ep          // visuelle EP/SL-Linie
-    ep_for_sl_trigger   := close           // SL-Trigger immer auf Kerzenschluss-Basis
+    ep_for_sl_trigger   := use_manual_ep and manual_ep_val > 0 ? manual_ep_val : close
     shortBelowFastMA    := close < fastMA_value
     if not na(current_entry_line)
         line.delete(current_entry_line)
@@ -272,10 +272,26 @@ else if shortSignal and barstate.isconfirmed
                                   yloc=yloc.price, color=color.new(color.red, 0),
                                   style=label.style_label_left, textcolor=color.white)
 
+// ── SL: EP/SL-Linien sofort entfernen sobald SL intrabar gefeuert hat ─────
+if exitLong_SL or exitShort_SL
+    if not na(current_entry_line)
+        line.delete(current_entry_line)
+        current_entry_line := na
+    if not na(current_entry_label)
+        label.delete(current_entry_label)
+        current_entry_label := na
+    if not na(sl_line_obj)
+        line.delete(sl_line_obj)
+        sl_line_obj := na
+    if not na(sl_label_obj)
+        label.delete(sl_label_obj)
+        sl_label_obj := na
+
 // ── EP/SL Label auf rechten Rand aktualisieren (simuliert Price Label) ──
-if position_open and not na(current_entry_label)
+// Überspringe Update wenn SL bereits gefeuert hat (Linien wurden oben gelöscht)
+if position_open and not exitLong_SL and not exitShort_SL and not na(current_entry_label)
     label.set_x(current_entry_label, bar_index + 2)
-if position_open and not na(entry_price)
+if position_open and not exitLong_SL and not exitShort_SL and not na(entry_price)
     if sl_enable
         sl_lv_cur = lastSignalDirection == 1 ? entry_price * (1.0 - sl_risk_pct / (100.0 * leverageLong)) : entry_price * (1.0 + sl_risk_pct / (100.0 * leverageShort))
         if na(sl_line_obj)
@@ -332,14 +348,30 @@ if backtest_enable
         window_initialized := false
 
     if in_window
-        // State changes only on confirmed bars – prevents repainting on live (unconfirmed) bars
+        // ── SL exits: intrabar – feuern sobald Low/High das SL-Level berührt ─────────
+        if exitLong_SL and bt_position_open and bt_position_type == 1
+            array.push(trade_percs, -sl_risk_pct)
+            trades += 1
+            create_trade_label(-sl_risk_pct)
+            trade_closed_this_bar := true
+            bt_position_open := false
+            bt_position_type := 0
+            bt_entry_price   := na
+
+        if exitShort_SL and bt_position_open and bt_position_type == -1
+            array.push(trade_percs, -sl_risk_pct)
+            trades += 1
+            create_trade_label(-sl_risk_pct)
+            trade_closed_this_bar := true
+            bt_position_open := false
+            bt_position_type := 0
+            bt_entry_price   := na
+
+        // MA-Exits + Entries nur auf bestätigten Kerzen – verhindert Repainting
         if barstate.isconfirmed
-            // ── 1. EXITS first (mirrors main state machine – enables flip on same bar) ──
-            if exitLong and bt_position_open and bt_position_type == 1
-                if exitLong_SL
-                    trade_pct := -sl_risk_pct
-                else
-                    trade_pct := ((close - bt_entry_price) / bt_entry_price * 100.0) * leverageLong
+            // ── 1. MA EXITS (non-SL) ──────────────────────────────────────────────────
+            if exitLong and not exitLong_SL and bt_position_open and bt_position_type == 1
+                trade_pct := ((close - bt_entry_price) / bt_entry_price * 100.0) * leverageLong
                 array.push(trade_percs, trade_pct)
                 trades += 1
                 create_trade_label(trade_pct)
@@ -348,11 +380,8 @@ if backtest_enable
                 bt_position_type := 0
                 bt_entry_price   := na
 
-            if exitShort and bt_position_open and bt_position_type == -1
-                if exitShort_SL
-                    trade_pct := -sl_risk_pct
-                else
-                    trade_pct := ((bt_entry_price - close) / bt_entry_price * 100.0) * leverageShort
+            if exitShort and not exitShort_SL and bt_position_open and bt_position_type == -1
+                trade_pct := ((bt_entry_price - close) / bt_entry_price * 100.0) * leverageShort
                 array.push(trade_percs, trade_pct)
                 trades += 1
                 create_trade_label(trade_pct)
@@ -593,9 +622,10 @@ plotshape(show_signal and exitLong  and not exitLong_SL,  title="Close Long",  l
           style=shape.cross,        size=size.tiny,  color=color.new(color.orange, 0), text="CL")
 plotshape(show_signal and exitShort and not exitShort_SL, title="Close Short", location=location.abovebar,
           style=shape.cross,        size=size.tiny,  color=color.new(color.orange, 0), text="CS")
-plotshape(show_signal and exitLong_SL,                  title="SL Long",     location=location.belowbar,
+// SL-Marker: kein barstate.isconfirmed – low/high vs. SL-Level repaints nie
+plotshape((not backtest_enable or in_window) and exitLong_SL,  title="SL Long",  location=location.belowbar,
           style=shape.xcross,       size=size.tiny,  color=color.new(color.red,    0), text="SL")
-plotshape(show_signal and exitShort_SL,                 title="SL Short",    location=location.abovebar,
+plotshape((not backtest_enable or in_window) and exitShort_SL, title="SL Short", location=location.abovebar,
           style=shape.xcross,       size=size.tiny,  color=color.new(color.red,    0), text="SL")
 
 // Test Mode: TC-Gruppen-ID als Label (gegenüberliegende Seite zum Signal)
