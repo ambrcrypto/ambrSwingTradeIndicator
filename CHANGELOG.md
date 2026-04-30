@@ -2,6 +2,69 @@
 
 ---
 
+## [v1.9.2] – 2026-04-30
+
+### Fix: EP-Label bei SL-Flip-Entry verschwunden
+
+**Problem:** Nach einem SL-Flip (z.B. Short-SL feuert → `flipToLong` auf gleicher Kerze) wurde
+das neu erstellte EP-Label sofort wieder gelöscht.
+
+**Ursache:** Reihenfolge der Blöcke im State Machine:
+1. Exit-Block (confirmed) → löscht alte Labels, setzt `current_entry_label := na`
+2. Entry-Block (confirmed) → erstellt **neues** EP-Label ✓
+3. SL-Cleanup-Block → `exitShort_SL = true` → `not na(current_entry_label)` trifft das neue Label → löscht es ✗
+
+**Fix:** SL-Cleanup-Block vor die Entry-Blöcke verschoben. Trifft jetzt nur noch das bereits
+auf `na` gesetzte Label aus dem Exit-Block → No-op. Das neue Entry-Label bleibt unberührt.
+
+---
+
+## [v1.9.1] – 2026-04-30
+
+### Fix: Manual EP beeinflusst historische Backtest-P/L nicht mehr
+
+**Problem:** Beim Aktivieren von „Use Manual EP" änderte sich die P/L vergangener Trades im Backtest,
+weil `ep_for_sl_trigger` beim Entry auf `manual_ep_val` gesetzt wurde und damit historische
+SL-Level retroaktiv verändert wurden.
+
+**Fix:**
+- `ep_for_sl_trigger` wird beim Entry **immer** auf `close` gesetzt (nicht auf `manual_ep_val`).
+- Neues `eff_sl_ep` für die SL-Level-Berechnung: nutzt `manual_ep_val` nur wenn
+  `use_manual_ep and manual_ep_val > 0 and not barstate.ishistory` – d.h. ausschließlich
+  auf der aktuellen Live-Bar.
+- Historische Bars verwenden weiterhin `ep_for_sl_trigger` (= `close` bei Entry).
+- `bt_entry_price` im Backtest war bereits immer `close` – keine Änderung dort.
+
+---
+
+## [v1.9.0] – 2026-04-30
+
+### Fix: Intrabar-SL mit Manual EP + EP/SL-Linien-Cleanup
+
+**Probleme:**
+1. SL feuerte intrabar nicht korrekt, wenn Manual EP aktiv war.
+2. EP/SL-Linien und -Labels blieben nach einem SL-Exit auf dem Chart stehen.
+
+**Fix:**
+- SL-Level-Berechnung nutzt jetzt `eff_sl_ep` (Manual EP wenn aktiv, sonst `ep_for_sl_trigger`).
+- Neuer Intrabar-Cleanup-Block: Sobald `exitLong_SL` oder `exitShort_SL` true ist, werden
+  EP-Linie, EP-Label, SL-Linie und SL-Label sofort gelöscht (nicht erst auf der nächsten Kerze).
+- Label-x-Update-Block überspringt Update wenn SL bereits gefeuert hat.
+
+---
+
+## [v1.8.9] – 2026-04-30
+
+### Fix: Repainting auf Live-Bar verhindert
+
+**Problem:** Backtest-Zustand (Entries/Exits) wurde auf jeder Intrabar-Aktualisierung der
+Live-Kerze neu geschrieben, was zu flackernden P/L-Werten führte.
+
+**Fix:** Alle Entry- und MA-Exit-Blöcke im State Machine laufen jetzt ausschließlich hinter
+`barstate.isconfirmed`. SL-Exits bleiben intrabar (low/high vs. SL-Level repaints nie).
+
+---
+
 ## [v1.8.5] – 2026-04-14
 
 ### Änderung: Rollierende 6M-Review-Baseline aktiviert
