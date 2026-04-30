@@ -205,6 +205,22 @@ if (exitLong or exitShort) and barstate.isconfirmed
         label.delete(sl_label_obj)
         sl_label_obj := na
 
+// ── SL: EP/SL-Linien sofort entfernen sobald SL intrabar gefeuert hat ─────
+// Muss VOR den Entries laufen – sonst werden bei SL-Flip neu erzeugte Labels gelöscht
+if exitLong_SL or exitShort_SL
+    if not na(current_entry_line)
+        line.delete(current_entry_line)
+        current_entry_line := na
+    if not na(current_entry_label)
+        label.delete(current_entry_label)
+        current_entry_label := na
+    if not na(sl_line_obj)
+        line.delete(sl_line_obj)
+        sl_line_obj := na
+    if not na(sl_label_obj)
+        label.delete(sl_label_obj)
+        sl_label_obj := na
+
 // ── 2. ENTRIES: Position öffnen (inkl. Flip) ─────────────────────────
 if longSignal and barstate.isconfirmed
     eff_ep              = use_manual_ep and manual_ep_val > 0 ? manual_ep_val : close
@@ -273,21 +289,6 @@ else if shortSignal and barstate.isconfirmed
                                   text=str.tostring(sl_lv, "#.##"),
                                   yloc=yloc.price, color=color.new(color.red, 0),
                                   style=label.style_label_left, textcolor=color.white)
-
-// ── SL: EP/SL-Linien sofort entfernen sobald SL intrabar gefeuert hat ─────
-if exitLong_SL or exitShort_SL
-    if not na(current_entry_line)
-        line.delete(current_entry_line)
-        current_entry_line := na
-    if not na(current_entry_label)
-        label.delete(current_entry_label)
-        current_entry_label := na
-    if not na(sl_line_obj)
-        line.delete(sl_line_obj)
-        sl_line_obj := na
-    if not na(sl_label_obj)
-        label.delete(sl_label_obj)
-        sl_label_obj := na
 
 // ── EP/SL Label auf rechten Rand aktualisieren (simuliert Price Label) ──
 // Überspringe Update wenn SL bereits gefeuert hat (Linien wurden oben gelöscht)
