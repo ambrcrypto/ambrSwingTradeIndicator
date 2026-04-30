@@ -144,7 +144,9 @@ exitLong_A  = useFastMA and position_open and lastSignalDirection == 1 and longA
 exitLong_B  = position_open and lastSignalDirection == 1 and cross_below_slowMA
 
 // CL Exit SL: Stop Loss – Intrabar-Low prueft SL-Level (no flip)
-sl_long_level  = sl_enable and position_open and lastSignalDirection == 1  and not na(ep_for_sl_trigger) ? ep_for_sl_trigger * (1.0 - sl_risk_pct / (100.0 * leverageLong)) : float(na)
+// Manual EP nur auf Live-Bar (nicht rückwirkend – verhindert Änderung historischer Backtest-Trades)
+eff_sl_ep      = use_manual_ep and manual_ep_val > 0 and not barstate.ishistory ? manual_ep_val : ep_for_sl_trigger
+sl_long_level  = sl_enable and position_open and lastSignalDirection == 1  and not na(ep_for_sl_trigger) ? eff_sl_ep * (1.0 - sl_risk_pct / (100.0 * leverageLong)) : float(na)
 exitLong_SL    = not na(sl_long_level) and low <= sl_long_level
 
 exitLong    = exitLong_A or exitLong_B or exitLong_SL
@@ -163,7 +165,7 @@ exitShort_A  = useFastMA and position_open and lastSignalDirection == -1 and sho
 exitShort_B  = position_open and lastSignalDirection == -1 and cross_above_slowMA
 
 // CS Exit SL: Stop Loss – Intrabar-High prueft SL-Level (no flip)
-sl_short_level = sl_enable and position_open and lastSignalDirection == -1 and not na(ep_for_sl_trigger) ? ep_for_sl_trigger * (1.0 + sl_risk_pct / (100.0 * leverageShort)) : float(na)
+sl_short_level = sl_enable and position_open and lastSignalDirection == -1 and not na(ep_for_sl_trigger) ? eff_sl_ep * (1.0 + sl_risk_pct / (100.0 * leverageShort)) : float(na)
 exitShort_SL   = not na(sl_short_level) and high >= sl_short_level
 
 exitShort    = exitShort_A or exitShort_B or exitShort_SL
@@ -209,7 +211,7 @@ if longSignal and barstate.isconfirmed
     lastSignalDirection := 1
     position_open       := true
     entry_price         := eff_ep          // visuelle EP/SL-Linie
-    ep_for_sl_trigger   := use_manual_ep and manual_ep_val > 0 ? manual_ep_val : close
+    ep_for_sl_trigger   := close              // immer close – Manual EP wird in sl_long/short_level dynamisch angewendet
     longAboveFastMA     := close > fastMA_value
     if not na(current_entry_line)
         line.delete(current_entry_line)
@@ -243,7 +245,7 @@ else if shortSignal and barstate.isconfirmed
     lastSignalDirection := -1
     position_open       := true
     entry_price         := eff_ep          // visuelle EP/SL-Linie
-    ep_for_sl_trigger   := use_manual_ep and manual_ep_val > 0 ? manual_ep_val : close
+    ep_for_sl_trigger   := close              // immer close – Manual EP wird in sl_long/short_level dynamisch angewendet
     shortBelowFastMA    := close < fastMA_value
     if not na(current_entry_line)
         line.delete(current_entry_line)
