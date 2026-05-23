@@ -11,7 +11,7 @@ Fixfenster: 2021-04-14 → 2023-10-31 (historisch, stabil, nie ändernd)
 Referenzwerte aus Diagnose-Run 2026-04-06.
 
 Verwendung:
-    cd ambrSwingTradeIndicator
+    cd ambSwingTradeIndicator
     pytest backtest/tests/test_regression.py -v
 """
 

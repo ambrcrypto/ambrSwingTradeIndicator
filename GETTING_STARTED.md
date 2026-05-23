@@ -16,7 +16,7 @@ Dieses Dokument erklärt Setup, ersten Backtest-Run, Optimierung und Metrik-Inte
 
 ```bash
 # 1. Ins Projektverzeichnis wechseln
-cd ambrSwingTradeIndicator
+cd ambSwingTradeIndicator
 
 # 2. Virtuelle Umgebung erstellen und aktivieren
 python -m venv .venv
@@ -193,7 +193,7 @@ python -m backtest.run_optimize --ticker MEIN-TICKER --mode quick --robustness
 ## 10. Projektstruktur
 
 ```
-ambrSwingTradeIndicator/
+ambSwingTradeIndicator/
 ├── AMB Dual MA Signal.pine        ← Live TradingView Indikator
 ├── CHANGELOG.md                   ← Versionshistorie
 ├── CHANGES.md                     ← Formale Change Requests (CHG-001 ff.)

@@ -7,7 +7,7 @@ die genau ein Signal-Szenario aus TESTCASES.md abdeckt.
 Gruppen: A (Entries), B (Re-Entries), C (Exits), D (SL), F (Flip)
 
 Verwendung:
-    cd ambrSwingTradeIndicator
+    cd ambSwingTradeIndicator
     pytest backtest/tests/ -v
 """
 
