@@ -8,7 +8,7 @@
 
 | Signal | Pine Script | Python | Match? |
 |--------|-----------|--------|--------|
-| **OL Entry** | `not position_open and lastSignalDirection != 1 and cross_above_slowMA` | `(not position_open) and (last_dir != 1) and cross_above_slow` | ✅ |
+  | **OL Entry** | `not position_open and (lastSignalDirection != 1 or not useFastMA) and cross_above_slowMA` | `(not position_open) and (last_dir != 1 or not params.use_fast_ma) and cross_above_slow` | ✅ |
 | **OL Re-Entry** | `not position_open and lastSignalDirection == 1 and cross_above_fastMA and close > slowMA` | `(not position_open) and (last_dir == 1) and cross_above_fast and (c > s)` | ✅ |
 | **CL Exit A** | `position_open and lastSignalDirection == 1 and longAboveFastMA and cross_below_fastMA` | `position_open and last_dir == 1 and long_above_fast_ma and cross_below_fast` | ✅ |
 | **CL Exit B** | `position_open and lastSignalDirection == 1 and cross_below_slowMA` | `position_open and last_dir == 1 and cross_below_slow` | ✅ |

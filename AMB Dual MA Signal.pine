@@ -131,8 +131,8 @@ cross_below_fastMA  = useFastMA and _cross_below_fastMA
 // ═══════════════════════════════════════════════════════════════════════
 
 // ── LONG ──────────────────────────────────────────────────────────────
-// OL Entry: Slow MA crossed from below (first time long, no open position)
-longEntry   = not position_open and lastSignalDirection != 1 and cross_above_slowMA
+// OL Entry: Slow MA crossed from below (first time long, no open position - or Fast MA disabled)
+longEntry   = not position_open and (lastSignalDirection != 1 or not useFastMA) and cross_above_slowMA
 
 // OL Re-Entry: Fast MA crossed from below, still above Slow MA
 longReentry = useFastMA and not position_open and lastSignalDirection == 1 and cross_above_fastMA and close > slowMA_value
@@ -152,8 +152,8 @@ exitLong_SL    = not na(sl_long_level) and low <= sl_long_level
 exitLong    = exitLong_A or exitLong_B or exitLong_SL
 
 // ── SHORT ─────────────────────────────────────────────────────────────
-// OS Entry: Slow MA crossed from above (first time short, no open position)
-shortEntry   = not position_open and lastSignalDirection != -1 and cross_below_slowMA
+// OS Entry: Slow MA crossed from above (first time short, no open position - or Fast MA disabled)
+shortEntry   = not position_open and (lastSignalDirection != -1 or not useFastMA) and cross_below_slowMA
 
 // OS Re-Entry: Fast MA crossed from above, still below Slow MA
 shortReentry = useFastMA and not position_open and lastSignalDirection == -1 and cross_below_fastMA and close < slowMA_value

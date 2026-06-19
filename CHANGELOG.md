@@ -2,6 +2,14 @@
 
 ---
 
+## [v1.10.0] – 2026-06-19
+
+### Fix: Single-MA Engine Lock
+**Problem:** Wenn der Fast MA deaktiviert wurde, blieb die Entry-Logik aufgrund der `lastSignalDirection != 1` Sperre dauerhaft hängen, da keine Validierung über den Fast MA Signal Reset erfolgte. Reine Slow MA Trendfolgestrategien ("Lazy" Ansatz) fielen in einen Lock-State.
+**Lösung:** Bypass für `lastSignalDirection` eingeführt. Ist der Fast MA deaktiviert (`not useFastMA`), werden Kreuzungen des Slow MA zwingend als Entry gewertet, unabhängig vom vorherigen `lastSignalDirection` State. Symmetrisch im Pine Script und im Python-Backtesting gespiegelt.
+
+---
+
 ## [v1.9.2] – 2026-04-30
 
 ### Fix: EP-Label bei SL-Flip-Entry verschwunden

@@ -19,7 +19,7 @@ except ImportError:
 BASE_DIR  = Path(__file__).parent
 CACHE_DIR = BASE_DIR / "cache"
 CACHE_DIR.mkdir(exist_ok=True)
-DATA_SOURCES = ("yfinance", "bybit")
+DATA_SOURCES = ("yfinance", "bybit", "binance")
 
 # Alias map: user-friendly name → yfinance symbol
 TICKER_MAP: dict[str, str] = {
@@ -113,6 +113,60 @@ def _resolve_bybit_symbol(ticker: str, markets: dict) -> str:
     raise ValueError(f"No Bybit market mapping found for ticker '{ticker}'")
 
 
+def _resolve_binance_symbol(ticker: str, markets: dict) -> str:
+    # We prioritize Spot market for long, clean historical data
+    t = ticker.upper()
+    preferred = {
+        "BTCUSDT": "BTC/USDT",
+        "BTC-USD": "BTC/USDT",
+        "BTC": "BTC/USDT",
+        "ETHUSDT": "ETH/USDT",
+        "ETH-USD": "ETH/USDT",
+        "ETH": "ETH/USDT",
+    }
+    if t in preferred and preferred[t] in markets:
+        return preferred[t]
+    raise ValueError(f"No Binance market mapping found for ticker '{ticker}'")
+
+
+def _download_fresh_binance(ticker: str) -> pd.DataFrame:
+    if ccxt is None:
+        raise ImportError("ccxt is required for source='binance'. Install with: pip install ccxt")
+
+    ex = ccxt.binance({"enableRateLimit": True})
+    markets = ex.load_markets()
+    symbol = _resolve_binance_symbol(ticker, markets)
+
+    tf = "1d"
+    day_ms = 24 * 60 * 60 * 1000
+    since = ex.parse8601("2017-08-01T00:00:00Z")  # Binance started roughly Aug 2017
+    now_ms = ex.milliseconds()
+    rows = []
+
+    while since < now_ms:
+        chunk = ex.fetch_ohlcv(symbol, timeframe=tf, since=since, limit=1000)
+        if not chunk:
+            break
+        rows.extend(chunk)
+        last_ts = chunk[-1][0]
+        next_since = last_ts + day_ms
+        if next_since <= since:
+            break
+        since = next_since
+        if len(chunk) < 1000:
+            break
+
+    if not rows:
+        raise ValueError(f"No data returned for Binance {symbol}")
+
+    df = pd.DataFrame(rows, columns=["timestamp", "open", "high", "low", "close", "volume"])
+    df["date"] = pd.to_datetime(df["timestamp"], unit="ms", utc=True).dt.tz_localize(None)
+    df = df.drop(columns=["timestamp"]).set_index("date").sort_index()
+    df = df[~df.index.duplicated(keep="last")]
+    df.index.name = "date"
+    return df
+
+
 def _download_fresh_bybit(ticker: str) -> pd.DataFrame:
     if ccxt is None:
         raise ImportError("ccxt is required for source='bybit'. Install with: pip install ccxt")
@@ -174,8 +228,10 @@ def get_all(ticker: str, force_refresh: bool = False, source: str = "yfinance") 
 
     if source == "yfinance":
         df = _download_fresh(_yf_ticker(ticker))
-    else:
+    elif source == "bybit":
         df = _download_fresh_bybit(ticker)
+    elif source == "binance":
+        df = _download_fresh_binance(ticker)
     df.to_csv(cache)
     return df
 
@@ -245,6 +301,8 @@ def describe(ticker: str, source: str = "yfinance") -> None:
     print(f"\n{'='*50}")
     if source == "yfinance":
         shown_symbol = _yf_ticker(ticker)
+    elif source == "binance":
+        shown_symbol = ticker.upper()
     else:
         shown_symbol = ticker.upper()
     print(f"  {shown_symbol} [{source}]")

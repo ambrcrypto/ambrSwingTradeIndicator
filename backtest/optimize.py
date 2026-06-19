@@ -194,9 +194,9 @@ GRIDS: dict[str, dict] = {
     # ── BTC-specific grids: allow_shorts=True, sl=True, use_fast_ma=True fixed ─────
     "btc_quick": {
         "slow_ma_len":    [100, 130, 160],
-        "slow_ma_type":   ["SMA"],
+        "slow_ma_type":   ["SMA", "EMA"],
         "fast_ma_len":    [30, 44, 60],
-        "fast_ma_type":   ["SMA"],
+        "fast_ma_type":   ["SMA", "EMA"],
         "use_fast_ma":    [True],
         "signal_tf":      ["D"],
         "allow_longs":    [True],
