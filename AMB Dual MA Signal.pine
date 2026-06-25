@@ -583,18 +583,25 @@ if backtest_enable
     table.cell(stats_tbl, 0, 3, "AvgW: " + (winning_trades > 0 ? str.tostring(avg_win_pct,  "#.##") + "%" : "n/a"), bgcolor=bg, text_color=color.white, text_size=size.small)
     table.cell(stats_tbl, 1, 3, "AvgL: " + (losing_trades  > 0 ? str.tostring(avg_loss_pct, "#.##") + "%" : "n/a"), bgcolor=bg, text_color=color.white, text_size=size.small)
     table.cell(stats_tbl, 2, 3, "Exp: "  + str.tostring(expectancy, "#.##") + "%",                                   bgcolor=bg, text_color=exp_col,      text_size=size.small)
-    table.cell(stats_tbl, 3, 3, "L:" + str.tostring(leverageLong, "#.##") + "x S:" + str.tostring(leverageShort, "#.##") + "x SL:" + str.tostring(sl_risk_pct, "#.#") + "% MA:" + str.tostring(slowMA_len) + "/" + str.tostring(fastMA_len), bgcolor=bg, text_color=color.white, text_size=size.small)
+    
+    slowMA_str = slowMA_type + str.tostring(slowMA_len)
+    fastMA_str = useFastMA ? ("/" + fastMA_type + str.tostring(fastMA_len)) : "/OFF"
+    dir_str = (allowLongs ? "L:" + str.tostring(leverageLong, "#.##") + "x " : "") + (allowShorts ? "S:" + str.tostring(leverageShort, "#.##") + "x " : "")
+    sl_str = sl_enable ? ("SL:" + str.tostring(sl_risk_pct, "#.#") + "%") : "SL:OFF"
+    cfg_str = dir_str + sl_str + " MA:" + slowMA_str + fastMA_str
+    
+    table.cell(stats_tbl, 3, 3, cfg_str, bgcolor=bg, text_color=color.yellow, text_size=size.tiny)
 
     // Row 4: Health Monitor Status
     health_text = not hm_enable ? "Monitor: off" : any_warning ? "⚠ REVISION CHECK" : "✓ System OK"
     health_bg   = not hm_enable ? bg : any_warning ? color.new(#3d1a1a, 0) : color.new(#0d2b1a, 0)
-    health_col  = not hm_enable ? color.new(color.gray, 0) : any_warning ? color.new(#ff5252, 0) : color.new(#00e676, 0)
+    health_col  = not hm_enable ? color.new(color.white, 50) : any_warning ? color.new(#ff5252, 0) : color.new(#00e676, 0)
     sl_rate_str = trades > 0 ? str.tostring(sl_rate, "#.#") + "%" : "n/a"
     thr_str     = "E>" + str.tostring(hm_min_exp, "#.#") + " W>" + str.tostring(hm_min_win, "#") + " DD<" + str.tostring(hm_max_dd, "#")
     table.cell(stats_tbl, 0, 4, health_text,                  bgcolor=health_bg, text_color=health_col,                text_size=size.small)
     table.cell(stats_tbl, 1, 4, "SL%: " + sl_rate_str,        bgcolor=bg,        text_color=sl_col,                    text_size=size.small)
-    table.cell(stats_tbl, 2, 4, thr_str,                       bgcolor=bg,        text_color=color.new(color.gray, 30), text_size=size.tiny)
-    table.cell(stats_tbl, 3, 4, "SL<" + str.tostring(hm_max_sl_rate, "#") + "%", bgcolor=bg, text_color=color.new(color.gray, 30), text_size=size.tiny)
+    table.cell(stats_tbl, 2, 4, thr_str,                       bgcolor=bg,        text_color=color.new(color.white, 30), text_size=size.tiny)
+    table.cell(stats_tbl, 3, 4, "SL<" + str.tostring(hm_max_sl_rate, "#") + "%", bgcolor=bg, text_color=color.new(color.white, 30), text_size=size.tiny)
 
 // ═══════════════════════════════════════════════════════════════════════
 // VISUALIZATION
@@ -633,7 +640,7 @@ plotshape((not backtest_enable or in_window) and exitShort_SL, title="SL Short",
 
 // Test Mode: TC-Gruppen-ID als Label (gegenüberliegende Seite zum Signal)
 if test_mode and show_signal
-    lbl_bg  = color.new(color.gray, 30)
+    lbl_bg  = color.new(color.white, 70)
     lbl_txt = color.white
     lbl_sz  = size.small
     if longEntry and allowLongs
